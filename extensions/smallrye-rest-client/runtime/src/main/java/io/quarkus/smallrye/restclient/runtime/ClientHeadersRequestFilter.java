@@ -61,19 +61,18 @@ public class ClientHeadersRequestFilter implements ClientRequestFilter {
     private static IncomingHeadersProvider initializeProvider() {
         ServiceLoader<IncomingHeadersProvider> providerLoader = ServiceLoader.load(IncomingHeadersProvider.class);
 
-        Iterator<IncomingHeadersProvider> providers = providerLoader.iterator();
-
-        if (!providers.hasNext()) {
-            return noIncomingHeadersProvider;
+        IncomingHeadersProvider result = null;
+        for (IncomingHeadersProvider headersProvider : providerLoader) {
+            if (result != null) {
+                throw new RuntimeException("Multiple " + IncomingHeadersProvider.class.getCanonicalName() + "'s " +
+                        "registered, expecting at most one.");
+            }
+            result = headersProvider;
         }
 
-        IncomingHeadersProvider result = providers.next();
-        if (providers.hasNext()) {
-            throw new RuntimeException("Multiple " + IncomingHeadersProvider.class.getCanonicalName() + "'s " +
-                    "registered, expecting at most one.");
-        }
-
-        return result;
+        return result == null
+                ? noIncomingHeadersProvider
+                : result;
     }
 
     @Override

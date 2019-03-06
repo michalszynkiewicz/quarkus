@@ -159,9 +159,7 @@ class SmallRyeRestClientProcessor {
             for (MethodInfo method : theInfo.methods()) {
                 Type type = method.returnType();
                 if (!type.name().toString().contains("java.lang")) {
-                    if (!returnTypes.contains(type)) {
-                        returnTypes.add(type);
-                    }
+                    returnTypes.add(type);
                 }
             }
         }
