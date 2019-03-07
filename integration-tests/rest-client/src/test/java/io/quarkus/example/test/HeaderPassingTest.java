@@ -17,7 +17,6 @@ package io.quarkus.example.test;
 
 import static io.quarkus.example.restclient.HeaderConsumingResource.HEADER_NAME;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.core.StringContains.containsString;
 
 import java.net.URI;
 import java.util.Map;
@@ -28,7 +27,6 @@ import org.junit.jupiter.api.Test;
 
 import io.quarkus.test.common.http.TestHTTPResource;
 import io.quarkus.test.junit.QuarkusTest;
-import io.restassured.RestAssured;
 
 /**
  * @author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com
