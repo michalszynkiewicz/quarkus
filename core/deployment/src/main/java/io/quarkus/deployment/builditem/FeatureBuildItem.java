@@ -59,6 +59,7 @@ public final class FeatureBuildItem extends MultiBuildItem {
     public static final String SMALLRYE_REACTIVE_MESSAGING_KAFKA = "smallrye-reactive-messaging-kafka";
     public static final String SMALLRYE_REACTIVE_MESSAGING_AMQP = "smallrye-reactive-messaging-amqp";
     public static final String SMALLRYE_REACTIVE_MESSAGING_MQTT = "smallrye-reactive-messaging-mqtt";
+    public static final String REACTIVE_MESSAGING_HTTP = "reactive-messaging-http";
     public static final String SMALLRYE_REACTIVE_STREAMS_OPERATORS = "smallrye-reactive-streams-operators";
     public static final String SMALLRYE_REACTIVE_TYPE_CONVERTERS = "smallrye-reactive-type-converters";
     public static final String SPRING_DI = "spring-di";

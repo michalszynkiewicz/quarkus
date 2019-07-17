@@ -532,6 +532,14 @@
     "guide": "https://quarkus.io/guides/amqp-guide"
   },
   {
+    "name": "Reactive Messaging - HTTP Connector",
+    "labels": [
+      "reactive-http"
+    ],
+    "groupId": "io.quarkus",
+    "artifactId": "quarkus-reactive-messaging-http"
+  },
+  {
     "name": "REST Client",
     "labels": [
       "rest-client",
