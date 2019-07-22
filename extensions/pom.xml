@@ -12,6 +12,14 @@
 
     <artifactId>quarkus-extensions-parent</artifactId>
     <name>Quarkus - Extensions - Parent pom</name>
+    <dependencies>
+        <dependency>
+            <groupId>org.reactivestreams</groupId>
+            <artifactId>reactive-streams</artifactId>
+            <version>1.0.2.redhat-1</version>
+            <scope>compile</scope>
+        </dependency>
+    </dependencies>
     <packaging>pom</packaging>
     <modules>
         <!-- Plumbing -->

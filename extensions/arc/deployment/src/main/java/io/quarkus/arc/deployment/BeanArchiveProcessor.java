@@ -69,11 +69,7 @@ public class BeanArchiveProcessor {
                     ArcProcessor.class.getClassLoader(),
                     beanClass.getData());
             generatedClassNames.add(DotName.createSimple(beanClass.getName().replace('/', '.')));
-            generatedClass.produce(
-                    new GeneratedClassBuildItem(
-                            beanClass.isApplicationClass(),
-                            beanClass.getName(),
-                            beanClass.getData()));
+            generatedClass.produce(new GeneratedClassBuildItem(true, beanClass.getName(), beanClass.getData()));
         }
 
         // Finally, index ArC/CDI API built-in classes

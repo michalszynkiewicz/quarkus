@@ -1,6 +1,7 @@
 package io.quarkus.reactivemessaging.http;
 
 import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.event.Observes;
 import javax.websocket.OnMessage;
 
 import org.reactivestreams.Processor;
@@ -13,26 +14,30 @@ import org.reactivestreams.Processor;
 @ApplicationScoped
 public abstract class ReactiveWebsocketEndpointBase {
 
+    private Processor<WebsocketMessage<?>, WebsocketMessage<?>> processor;
+
+    public void initializeProcessor(@Observes WebsocketProcessorCreated event) {
+        System.out.println("got event: " + event); // mstodo remove
+        if (event.matchesPath(path())) {
+            processor = event.getProcessor();
+        } else {
+            System.out.println("not matching"); // mstodo
+        }
+    }
+
     // mstodo: on parsing error call processor.onError?
     @OnMessage
     public void onMessage(String message) {
         System.out.println("got message " + message + " for path: " + path());
-        Processor<WebsocketMessage<?>, WebsocketMessage<?>> processor = getProcessor();
+        // mstodo check for processor == null
         processor.onNext(new WebsocketMessage<>(message));
     }
 
     // mstodo: on parsing error call processor.onError?
     @OnMessage
     public void onMessage(byte[] message) {
-        Processor<WebsocketMessage<?>, WebsocketMessage<?>> processor = getProcessor();
         processor.onNext(new WebsocketMessage<>(message));
     }
 
-    private Processor<WebsocketMessage<?>, WebsocketMessage<?>> getProcessor() {
-        return connector().getProcessor(path());
-    }
-
     protected abstract String path();
-
-    protected abstract QuarkusWebsocketConnector connector();
 }

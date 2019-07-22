@@ -1,16 +1,16 @@
 package io.quarkus.reactivemessaging.http;
 
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Arrays;
 
 import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.event.Event;
+import javax.inject.Inject;
 
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.reactive.messaging.spi.Connector;
 import org.eclipse.microprofile.reactive.messaging.spi.IncomingConnectorFactory;
 import org.eclipse.microprofile.reactive.streams.operators.PublisherBuilder;
-import org.reactivestreams.Processor;
+import org.jboss.logging.Logger;
 
 import io.reactivex.processors.BehaviorProcessor;
 
@@ -23,32 +23,57 @@ import io.reactivex.processors.BehaviorProcessor;
 @ApplicationScoped
 public class QuarkusHttpConnector implements IncomingConnectorFactory {
 
+    private static Logger log = Logger.getLogger(QuarkusHttpConnector.class);
+
     static final String NAME = "quarkus-http";
 
-    private Map<HttpInputDescriptor, BehaviorProcessor<HttpMessage<?>>> processors = new ConcurrentHashMap<>();
+    @Inject
+    Event<HttpProcessorCreated> processorCreatedEvent;
 
     @Override
     public PublisherBuilder<HttpMessage<?>> getPublisherBuilder(Config config) {
-        BehaviorProcessor<HttpMessage<?>> processor = BehaviorProcessor.create();
 
         String path = config.getOptionalValue("path", String.class)
                 .orElseThrow(() -> new IllegalArgumentException("The `path` must be set"));
+        String contentType = config.getOptionalValue("content-type", String.class).orElse("text/plain");
 
-        String method = config.getOptionalValue("method", String.class)
+        HttpMethod method = getMethod(config);
+
+        BehaviorProcessor<HttpMessage<?>> processor = buildAndPropagateProcessor(path, method, contentType);
+
+        return new HttpSource().getSource(processor);
+    }
+
+    private HttpMethod getMethod(Config config) {
+        String methodAsString = config.getOptionalValue("method", String.class)
                 .map(String::toUpperCase)
                 .orElseThrow(() -> new IllegalArgumentException("The `method` must be set"));
-
-        processors.put(new HttpInputDescriptor(path, method), processor);
-
-        PublisherBuilder<HttpMessage<?>> source = new HttpSource().getSource(processor);
-        return source;
+        try {
+            return HttpMethod.valueOf(methodAsString);
+        } catch (IllegalArgumentException e) {
+            String error = "Unsupported HTTP method: " + methodAsString + ". The supported methods are: "
+                    + Arrays.toString(HttpMethod.values());
+            log.warn(error, e);
+            throw new IllegalArgumentException(error);
+        }
     }
 
-    public Processor<HttpMessage<?>, HttpMessage<?>> getProcessor(HttpInputDescriptor httpInputDescriptor) {
-        return processors.get(httpInputDescriptor);
+    private BehaviorProcessor<HttpMessage<?>> buildAndPropagateProcessor(String path, HttpMethod method, String contentType) {
+        BehaviorProcessor<HttpMessage<?>> processor = BehaviorProcessor.create();
+        Deserializer<?> deserializer = createDeserializer(contentType);
+        processorCreatedEvent.fire(new HttpProcessorCreated(path, method, processor, deserializer));
+        return processor;
     }
 
-    public Set<HttpInputDescriptor> getProcessors() {
-        return processors.keySet();
+    private Deserializer<?> createDeserializer(String contentType) {
+        contentType = contentType.toLowerCase();
+        if (contentType.contains("text")) {
+            return Deserializer.STRING;
+        }
+        if (contentType.contains("json")) {
+            return Deserializer.JSON;
+        }
+
+        return Deserializer.BYTE_ARRAY;
     }
 }

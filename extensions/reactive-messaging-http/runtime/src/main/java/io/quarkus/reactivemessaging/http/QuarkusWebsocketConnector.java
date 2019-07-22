@@ -1,16 +1,16 @@
 package io.quarkus.reactivemessaging.http;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.event.Event;
+import javax.inject.Inject;
 
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.reactive.messaging.spi.Connector;
 import org.eclipse.microprofile.reactive.messaging.spi.IncomingConnectorFactory;
 import org.eclipse.microprofile.reactive.streams.operators.PublisherBuilder;
-import org.reactivestreams.Processor;
 
 import io.reactivex.processors.BehaviorProcessor;
 
@@ -25,6 +25,9 @@ public class QuarkusWebsocketConnector implements IncomingConnectorFactory {
     static final String NAME = "quarkus-websocket";
     private Map<String, BehaviorProcessor<WebsocketMessage<?>>> processors = new ConcurrentHashMap<>();
 
+    @Inject
+    Event<WebsocketProcessorCreated> processorCreatedEvent;
+
     @Override
     public PublisherBuilder<WebsocketMessage<?>> getPublisherBuilder(Config config) {
         BehaviorProcessor<WebsocketMessage<?>> processor = BehaviorProcessor.create();
@@ -32,16 +35,10 @@ public class QuarkusWebsocketConnector implements IncomingConnectorFactory {
         String path = config.getOptionalValue("path", String.class)
                 .orElseThrow(() -> new IllegalArgumentException("The `path` must be set for a websocket connector"));
 
-        processors.put(path, processor);
+        WebsocketProcessorCreated event = new WebsocketProcessorCreated(path, processor);
+        System.out.println("firing processor event: " + event);
+        processorCreatedEvent.fire(event);
 
         return new WebsocketSource().getSource(processor);
-    }
-
-    public Processor<WebsocketMessage<?>, WebsocketMessage<?>> getProcessor(String path) {
-        return processors.get(path);
-    }
-
-    public Set<String> getPaths() {
-        return processors.keySet();
     }
 }

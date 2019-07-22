@@ -1,6 +1,8 @@
 package io.quarkus.reactivemessaging.http;
 
-import java.util.stream.Stream;
+import java.util.Random;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import org.eclipse.microprofile.config.Config;
@@ -14,15 +16,18 @@ import org.eclipse.microprofile.config.Config;
  */
 public class ReactiveHttpConnectorUtils {
 
-    public static final String MP_MESSAGING_PREFIX = "mp.messaging.incoming.";
-    public static final String CONNECTOR = ".connector";
+    private static final Random random = new Random();
 
-    public static Stream<String> connectorNames(Config config, String connectorType) {
+    private static final String MP_MESSAGING_PREFIX = "mp.messaging.incoming.";
+    private static final String CONNECTOR = ".connector";
+
+    public static Set<String> connectorNames(Config config, String connectorType) {
         Iterable<String> propertyKeys = config.getPropertyNames();
         return StreamSupport.stream(propertyKeys.spliterator(), false)
                 .filter(ReactiveHttpConnectorUtils::isConnectorProperty)
                 .filter(key -> isConnectorOfType(config, key, connectorType))
-                .map(ReactiveHttpConnectorUtils::channelName);
+                .map(ReactiveHttpConnectorUtils::channelName)
+                .collect(Collectors.toSet());
     }
 
     public static String configKey(String channelName, String key) {
@@ -41,6 +46,11 @@ public class ReactiveHttpConnectorUtils {
         }
 
         return result.toString();
+    }
+
+    public static String toUniqueClassName(String prefix, String connectorName) {
+        long randomNumber = random.nextInt(1000);
+        return prefix + toClassSafeCharacters(connectorName) + randomNumber;
     }
 
     private static String channelName(String name) {

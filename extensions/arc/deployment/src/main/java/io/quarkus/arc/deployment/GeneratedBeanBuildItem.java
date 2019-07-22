@@ -8,22 +8,12 @@ import io.quarkus.builder.item.MultiBuildItem;
  */
 public final class GeneratedBeanBuildItem extends MultiBuildItem {
 
-    final boolean applicationClass;
     final String name;
     final byte[] data;
 
     public GeneratedBeanBuildItem(String name, byte[] data) {
-        this(false, name, data);
-    }
-
-    public GeneratedBeanBuildItem(boolean applicationClass, String name, byte[] data) {
-        this.applicationClass = applicationClass;
         this.name = name;
         this.data = data;
-    }
-
-    public boolean isApplicationClass() {
-        return applicationClass;
     }
 
     public String getName() {

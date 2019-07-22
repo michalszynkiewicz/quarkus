@@ -10,6 +10,7 @@ import io.reactivex.processors.BehaviorProcessor;
  *         <br>
  *         Date: 09/07/2019
  */
+// mstodo this class seems not necessary
 public class HttpSource {
 
     public PublisherBuilder<HttpMessage<?>> getSource(BehaviorProcessor<HttpMessage<?>> processor) {
