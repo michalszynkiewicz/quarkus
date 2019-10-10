@@ -76,8 +76,18 @@ public class CustomAuth implements HTTPAuthenticationMechanism {
 
     @Override
     public CompletionStage<Boolean> sendChallenge(RoutingContext context) {
-        context.response().headers().set(HttpHeaderNames.WWW_AUTHENTICATE, "BASIC realm=CUSTOM");
-        context.response().setStatusCode(HttpResponseStatus.UNAUTHORIZED.code());
+        context.response().headers().set(challengeHeader(), challengeContent());
+        context.response().setStatusCode(challengeStatus());
         return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    public String challengeContent() {
+        return "BASIC realm=CUSTOM";
+    }
+
+    @Override
+    public int challengeStatus() {
+        return HttpResponseStatus.UNAUTHORIZED.code();
     }
 }

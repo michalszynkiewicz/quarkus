@@ -7,7 +7,6 @@ import javax.enterprise.context.ApplicationScoped;
 
 import org.jboss.logging.Logger;
 
-import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.quarkus.security.credential.TokenCredential;
 import io.quarkus.security.identity.IdentityProviderManager;
@@ -50,9 +49,19 @@ public class OAuth2AuthMechanism implements HTTPAuthenticationMechanism {
 
     @Override
     public CompletionStage<Boolean> sendChallenge(RoutingContext context) {
-        context.response().headers().set(HttpHeaderNames.WWW_AUTHENTICATE, "Bearer {token}");
-        context.response().setStatusCode(HttpResponseStatus.UNAUTHORIZED.code());
+        context.response().headers().set(challengeHeader(), challengeContent());
+        context.response().setStatusCode(challengeStatus());
         log.debugf("Sending Bearer {token} challenge for %s", context);
         return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    public int challengeStatus() {
+        return HttpResponseStatus.UNAUTHORIZED.code();
+    }
+
+    @Override
+    public String challengeContent() {
+        return "Bearer {token}";
     }
 }

@@ -96,4 +96,18 @@ public class HttpAuthenticator {
         }
     }
 
+    public int challengeStatus() {
+        if (mechanism == null) {
+            return HttpResponseStatus.FORBIDDEN.code();
+        }
+        return mechanism.challengeStatus();
+    }
+
+    public String challengeContent() {
+        return mechanism.challengeContent();
+    }
+
+    public CharSequence challengeHeader() {
+        return mechanism.challengeHeader();
+    }
 }

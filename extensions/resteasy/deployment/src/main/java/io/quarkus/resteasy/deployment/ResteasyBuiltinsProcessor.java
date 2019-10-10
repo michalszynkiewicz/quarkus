@@ -11,8 +11,10 @@ import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.Record;
 import io.quarkus.resteasy.common.spi.ResteasyJaxrsProviderBuildItem;
 import io.quarkus.resteasy.runtime.ExceptionMapperRecorder;
+import io.quarkus.resteasy.runtime.ForbiddenExceptionMapper;
 import io.quarkus.resteasy.runtime.NotFoundExceptionMapper;
 import io.quarkus.resteasy.runtime.RolesFilterRegistrar;
+import io.quarkus.resteasy.runtime.UnauthorizedExceptionMapper;
 import io.quarkus.undertow.deployment.StaticResourceFilesBuildItem;
 
 public class ResteasyBuiltinsProcessor {
@@ -20,8 +22,15 @@ public class ResteasyBuiltinsProcessor {
      * Install the JAX-RS security provider.
      */
     @BuildStep
+    // mstodo drop the corresponding classes if not needed
     void setupFilter(BuildProducer<ResteasyJaxrsProviderBuildItem> providers) {
         providers.produce(new ResteasyJaxrsProviderBuildItem(RolesFilterRegistrar.class.getName()));
+    }
+
+    @BuildStep
+    void setUpSecurityExceptionMappers(BuildProducer<ResteasyJaxrsProviderBuildItem> providers) {
+        providers.produce(new ResteasyJaxrsProviderBuildItem(UnauthorizedExceptionMapper.class.getName()));
+        providers.produce(new ResteasyJaxrsProviderBuildItem(ForbiddenExceptionMapper.class.getName()));
     }
 
     @BuildStep(onlyIf = IsDevelopment.class)

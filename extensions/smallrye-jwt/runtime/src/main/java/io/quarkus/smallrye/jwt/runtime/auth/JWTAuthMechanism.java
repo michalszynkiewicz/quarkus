@@ -12,7 +12,6 @@ import javax.inject.Inject;
 
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
-import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.quarkus.security.credential.TokenCredential;
@@ -53,9 +52,19 @@ public class JWTAuthMechanism implements HTTPAuthenticationMechanism {
 
     @Override
     public CompletionStage<Boolean> sendChallenge(RoutingContext context) {
-        context.response().headers().set(HttpHeaderNames.WWW_AUTHENTICATE, "Bearer {token}");
-        context.response().setStatusCode(HttpResponseStatus.UNAUTHORIZED.code());
+        context.response().headers().set(challengeHeader(), challengeContent());
+        context.response().setStatusCode(challengeStatus());
         return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    public String challengeContent() {
+        return "Bearer {token}";
+    }
+
+    @Override
+    public int challengeStatus() {
+        return HttpResponseStatus.UNAUTHORIZED.code();
     }
 
     private static class VertxBearerTokenExtractor extends AbstractBearerTokenExtractor {

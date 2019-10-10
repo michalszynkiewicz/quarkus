@@ -28,7 +28,7 @@ import io.quarkus.security.Authenticated;
  * common security annotations.
  */
 @Provider
-public class RolesFilterRegistrar implements DynamicFeature {
+public class RolesFilterRegistrar implements DynamicFeature { // mstodo remove ?
 
     private static final DenyAllFilter denyAllFilter = new DenyAllFilter();
     private final Set<Class<? extends Annotation>> securityAnnotations = new HashSet<>(

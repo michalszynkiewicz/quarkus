@@ -169,8 +169,18 @@ public class BasicAuthenticationMechanism implements HTTPAuthenticationMechanism
                 return CompletableFuture.completedFuture(false);
             }
         }
-        context.response().headers().set(HttpHeaderNames.WWW_AUTHENTICATE, challenge);
-        context.response().setStatusCode(HttpResponseStatus.UNAUTHORIZED.code());
+        context.response().headers().set(challengeHeader(), challengeContent());
+        context.response().setStatusCode(challengeStatus());
         return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    public int challengeStatus() {
+        return HttpResponseStatus.UNAUTHORIZED.code();
+    }
+
+    @Override
+    public String challengeContent() {
+        return challenge;
     }
 }

@@ -80,9 +80,24 @@ public class VertxOAuth2AuthenticationMechanism implements HTTPAuthenticationMec
 
     @Override
     public CompletionStage<Boolean> sendChallenge(RoutingContext context) {
-        context.response().setStatusCode(302);
-        context.response().headers().set(HttpHeaders.LOCATION, authURI(authServerURI));
+        context.response().setStatusCode(challengeStatus());
+        context.response().headers().set(challengeHeader(), challengeContent());
         return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    public int challengeStatus() {
+        return 302;
+    }
+
+    @Override
+    public CharSequence challengeHeader() {
+        return HttpHeaders.LOCATION;
+    }
+
+    @Override
+    public String challengeContent() {
+        return authURI(authServerURI);
     }
 
     private String authURI(String redirectURL) {

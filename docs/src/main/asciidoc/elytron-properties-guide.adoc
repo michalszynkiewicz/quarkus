@@ -50,7 +50,7 @@ quarkus.security.users.file.users=test-users.properties
 quarkus.security.users.file.roles=test-roles.properties
 quarkus.security.users.file.auth-mechanism=BASIC
 quarkus.security.users.file.realm-name=MyRealm
-quarkus.security.users.file.plain-test=true
+quarkus.security.users.file.plain-text=true
 ----
 
 ==== Users.properties
