@@ -25,9 +25,6 @@ import io.quarkus.security.runtime.ForbiddenException;
 import io.quarkus.security.runtime.UnauthorizedException;
 
 /**
- * mstodo: MP JWT has /META-INF/MP-JWT-DENY-NONANNOTATED-METHODS - is it SmallRye specific or MP-wide?
- * mstodo: handle or make sure we don't have to
- *
  * @author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com
  *         <br>
  *         Date: 03/10/2019
@@ -44,8 +41,8 @@ public class SecurityConstrainer {
     SecurityIdentity identity;
 
     public void checkRoles(Method method) {
-        getCheck(method).ifPresent(
-                check -> check.apply(identity));
+        getCheck(method)
+              .ifPresent(check -> check.apply(identity));
     }
 
     private Optional<Check> getCheck(Method method) {

@@ -10,6 +10,7 @@ import java.util.Set;
 import org.jboss.logging.Logger;
 
 import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
+import io.quarkus.arc.deployment.AnnotationsTransformerBuildItem;
 import io.quarkus.arc.deployment.InterceptorBindingRegistrarBuildItem;
 import io.quarkus.deployment.Capabilities;
 import io.quarkus.deployment.annotations.BuildProducer;
@@ -17,6 +18,7 @@ import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.deployment.builditem.substrate.ReflectiveClassBuildItem;
 import io.quarkus.security.runtime.IdentityProviderManagerCreator;
+import io.quarkus.security.runtime.SecurityBuildTimeConfig;
 import io.quarkus.security.runtime.SecurityIdentityAssociation;
 import io.quarkus.security.runtime.SecurityIdentityProxy;
 import io.quarkus.security.runtime.interceptor.AuthenticatedInterceptor;
@@ -61,6 +63,14 @@ public class SecurityProcessor {
                 classes.produce(new ReflectiveClassBuildItem(true, true, className));
                 log.debugf("Register JCA class: %s", className);
             }
+        }
+    }
+
+    @BuildStep
+    void transformSecurityAnnotations(BuildProducer<AnnotationsTransformerBuildItem> transformers,
+            SecurityBuildTimeConfig config) {
+        if (config.denyUnannotated) {
+            transformers.produce(new AnnotationsTransformerBuildItem(new DenyingUnannotatedTransformer()));
         }
     }
 

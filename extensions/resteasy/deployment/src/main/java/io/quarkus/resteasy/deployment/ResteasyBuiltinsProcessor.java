@@ -5,28 +5,35 @@ import static io.quarkus.deployment.annotations.ExecutionTime.STATIC_INIT;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import io.quarkus.arc.deployment.AnnotationsTransformerBuildItem;
 import io.quarkus.deployment.IsDevelopment;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.Record;
+import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
 import io.quarkus.resteasy.common.spi.ResteasyJaxrsProviderBuildItem;
 import io.quarkus.resteasy.runtime.ExceptionMapperRecorder;
 import io.quarkus.resteasy.runtime.ForbiddenExceptionMapper;
 import io.quarkus.resteasy.runtime.NotFoundExceptionMapper;
-import io.quarkus.resteasy.runtime.RolesFilterRegistrar;
 import io.quarkus.resteasy.runtime.UnauthorizedExceptionMapper;
+import io.quarkus.security.runtime.SecurityBuildTimeConfig;
 import io.quarkus.undertow.deployment.StaticResourceFilesBuildItem;
 
+// mstodo tests!!
+// mstodo tests for subresources!!
 public class ResteasyBuiltinsProcessor {
+    @BuildStep
+    void setUpDenyAllJaxRs(CombinedIndexBuildItem index,
+            SecurityBuildTimeConfig config,
+            BuildProducer<AnnotationsTransformerBuildItem> transformers) {
+        if (config.denyJaxRs) {
+            transformers.produce(new AnnotationsTransformerBuildItem(new DenyJaxRsTransformer(index.getIndex())));
+        }
+    }
+
     /**
      * Install the JAX-RS security provider.
      */
-    @BuildStep
-    // mstodo drop the corresponding classes if not needed
-    void setupFilter(BuildProducer<ResteasyJaxrsProviderBuildItem> providers) {
-        providers.produce(new ResteasyJaxrsProviderBuildItem(RolesFilterRegistrar.class.getName()));
-    }
-
     @BuildStep
     void setUpSecurityExceptionMappers(BuildProducer<ResteasyJaxrsProviderBuildItem> providers) {
         providers.produce(new ResteasyJaxrsProviderBuildItem(UnauthorizedExceptionMapper.class.getName()));

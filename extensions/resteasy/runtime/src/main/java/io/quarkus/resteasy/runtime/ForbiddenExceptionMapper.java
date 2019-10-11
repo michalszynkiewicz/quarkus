@@ -18,6 +18,6 @@ import io.quarkus.security.runtime.ForbiddenException;
 public class ForbiddenExceptionMapper implements ExceptionMapper<ForbiddenException> {
     @Override
     public Response toResponse(ForbiddenException exception) {
-        return Response.status(403).build();
+        return Response.status(403).entity("Access forbidden: role not allowed").build();
     }
 }
