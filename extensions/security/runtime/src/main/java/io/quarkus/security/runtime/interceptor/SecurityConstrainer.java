@@ -4,6 +4,7 @@ import static java.util.Arrays.asList;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,22 +41,29 @@ public class SecurityConstrainer {
     @Inject
     SecurityIdentity identity;
 
-    public void checkRoles(Method method) {
-        getCheck(method)
+    public void checkRoles(Method method, Collection<Annotation> interceptorBindings) {
+        getCheck(method, interceptorBindings)
               .ifPresent(check -> check.apply(identity));
     }
 
-    private Optional<Check> getCheck(Method method) {
-        return checkForMethod.computeIfAbsent(method, this::determineSecurityCheck);
+    private Optional<Check> getCheck(Method method, Collection<Annotation> interceptorBindings) {
+        return checkForMethod.computeIfAbsent(method, m -> determineSecurityCheck(m, interceptorBindings));
     }
 
-    private Optional<Check> determineSecurityCheck(Method method) {
+    private Optional<Check> determineSecurityCheck(Method method, Collection<Annotation> interceptorBindings) {
         Annotation securityAnnotation = determineSecurityAnnotation(method.getDeclaredAnnotations(), method::toString);
         if (securityAnnotation == null) {
             Class<?> declaringClass = method.getDeclaringClass();
             securityAnnotation = determineSecurityAnnotation(declaringClass.getDeclaredAnnotations(),
                     declaringClass::getCanonicalName);
         }
+        if  (securityAnnotation == null) {
+            securityAnnotation = determineSecurityAnnotationFromBindings(interceptorBindings, method::toString);
+        }
+        return checkForAnnotation(securityAnnotation);
+    }
+
+    private Optional<Check> checkForAnnotation(Annotation securityAnnotation) {
         if (securityAnnotation instanceof DenyAll) {
             return Optional.of(new DenyAllCheck());
         }
@@ -72,11 +80,23 @@ public class SecurityConstrainer {
         return Optional.empty();
     }
 
+    private Annotation determineSecurityAnnotationFromBindings(Collection<Annotation> interceptorBindings,
+                                                               Supplier<String> annotationPlacement) {
+        List<Annotation> securityAnnotations = interceptorBindings.stream()
+              .filter(anno -> SECURITY_ANNOTATIONS.stream().anyMatch(c -> c.isInstance(anno)))
+              .collect(Collectors.toList());
+        return getExactlyOne(securityAnnotations, annotationPlacement);
+    }
+
     private Annotation determineSecurityAnnotation(Annotation[] annotations, Supplier<String> annotationPlacement) {
         List<Annotation> securityAnnotations = Stream.of(annotations)
                 .filter(ann -> SECURITY_ANNOTATIONS.contains(ann.annotationType()))
                 .collect(Collectors.toList());
 
+        return getExactlyOne(securityAnnotations, annotationPlacement);
+    }
+
+    private Annotation getExactlyOne(List<Annotation> securityAnnotations, Supplier<String> annotationPlacement) {
         switch (securityAnnotations.size()) {
             case 0:
                 return null;
