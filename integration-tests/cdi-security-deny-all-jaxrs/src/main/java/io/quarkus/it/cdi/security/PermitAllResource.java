@@ -9,7 +9,7 @@ import javax.ws.rs.Path;
  *         <br>
  *         Date: 11/10/2019
  */
-@Path("/permitAll") // mstodo drop unneeded
+@Path("/permitAll")
 @PermitAll
 public class PermitAllResource {
     @Path("/defaultSecurity")

@@ -50,7 +50,6 @@ public class UnauthorizedExceptionMapper implements ExceptionMapper<Unauthorized
     public Response toResponse(UnauthorizedException exception) {
         SecurityIdentity identity = CurrentIdentityAssociation.current();
         if (HTTP_SERVLET_REQUEST != null) {
-            // mstodo is this needed?
             Object httpServletRequest = ResteasyContext.getContextData(HTTP_SERVLET_REQUEST);
             if (httpServletRequest != null) {
                 Object httpServletResponse = ResteasyContext.getContextData(HTTP_SERVLET_RESPONSE);
