@@ -1,6 +1,7 @@
 package io.quarkus.resteasy.runtime;
 
 import java.lang.reflect.Method;
+import java.util.concurrent.ExecutionException;
 
 import javax.annotation.Priority;
 import javax.ws.rs.Priorities;
@@ -8,11 +9,13 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.ext.ExceptionMapper;
 import javax.ws.rs.ext.Provider;
 
+import org.jboss.logging.Logger;
 import org.jboss.resteasy.core.ResteasyContext;
 
 import io.quarkus.security.identity.CurrentIdentityAssociation;
 import io.quarkus.security.identity.SecurityIdentity;
 import io.quarkus.security.runtime.UnauthorizedException;
+import io.quarkus.vertx.http.runtime.security.ChallengeData;
 import io.quarkus.vertx.http.runtime.security.HttpAuthenticator;
 import io.vertx.ext.web.RoutingContext;
 
@@ -24,6 +27,8 @@ import io.vertx.ext.web.RoutingContext;
 @Provider
 @Priority(Priorities.USER + 1)
 public class UnauthorizedExceptionMapper implements ExceptionMapper<UnauthorizedException> {
+
+    private static final Logger log = Logger.getLogger(UnauthorizedExceptionMapper.class.getName());
 
     //Servlet API may not be present
     private static final Class<?> HTTP_SERVLET_REQUEST;
@@ -38,7 +43,7 @@ public class UnauthorizedExceptionMapper implements ExceptionMapper<Unauthorized
             httpServletReq = Class.forName("javax.servlet.http.HttpServletRequest");
             httpServletResp = Class.forName("javax.servlet.http.HttpServletResponse");
             auth = httpServletReq.getMethod("authenticate", httpServletResp);
-        } catch (Exception e) {
+        } catch (Exception ignored) {
 
         }
         AUTHENTICATE = auth;
@@ -63,9 +68,17 @@ public class UnauthorizedExceptionMapper implements ExceptionMapper<Unauthorized
         HttpAuthenticator authenticator = identity.getAttribute(HttpAuthenticator.class.getName());
         RoutingContext context = ResteasyContext.getContextData(RoutingContext.class);
         if (authenticator != null && context != null) {
-            return Response.status(authenticator.challengeStatus())
-                    .header(authenticator.challengeHeader().toString(), authenticator.challengeContent())
-                    .build();
+            try {
+                ChallengeData challengeData = authenticator.getChallenge(context)
+                        .toCompletableFuture()
+                        .get();
+                return Response.status(challengeData.status)
+                        .header(challengeData.headerName.toString(), challengeData.headerContent)
+                        .build();
+            } catch (InterruptedException | ExecutionException e) {
+                log.error("Failed to read challenge data for unauthorized response", e);
+                return Response.status(401).entity("Not authorized").build();
+            }
         } else {
             return Response.status(401).entity("Not authorized").build();
         }

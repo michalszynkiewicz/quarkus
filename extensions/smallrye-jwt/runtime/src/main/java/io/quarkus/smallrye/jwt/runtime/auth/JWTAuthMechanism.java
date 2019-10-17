@@ -12,12 +12,14 @@ import javax.inject.Inject;
 
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.quarkus.security.credential.TokenCredential;
 import io.quarkus.security.identity.IdentityProviderManager;
 import io.quarkus.security.identity.SecurityIdentity;
 import io.quarkus.security.identity.request.TokenAuthenticationRequest;
+import io.quarkus.vertx.http.runtime.security.ChallengeData;
 import io.quarkus.vertx.http.runtime.security.HttpAuthenticationMechanism;
 import io.smallrye.jwt.auth.AbstractBearerTokenExtractor;
 import io.smallrye.jwt.auth.cdi.PrincipalProducer;
@@ -51,20 +53,12 @@ public class JWTAuthMechanism implements HttpAuthenticationMechanism {
     }
 
     @Override
-    public CompletionStage<Boolean> sendChallenge(RoutingContext context) {
-        context.response().headers().set(challengeHeader(), challengeContent());
-        context.response().setStatusCode(challengeStatus());
-        return CompletableFuture.completedFuture(true);
-    }
-
-    @Override
-    public String challengeContent() {
-        return "Bearer {token}";
-    }
-
-    @Override
-    public int challengeStatus() {
-        return HttpResponseStatus.UNAUTHORIZED.code();
+    public CompletionStage<ChallengeData> getChallenge(RoutingContext context) {
+        ChallengeData result = new ChallengeData(
+                HttpResponseStatus.UNAUTHORIZED.code(),
+                HttpHeaderNames.WWW_AUTHENTICATE,
+                "Bearer {token}");
+        return CompletableFuture.completedFuture(result);
     }
 
     private static class VertxBearerTokenExtractor extends AbstractBearerTokenExtractor {

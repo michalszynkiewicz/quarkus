@@ -10,12 +10,10 @@ import io.quarkus.security.Authenticated;
 
 /**
  * @author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com
- *         <br>
- *         Date: 08/10/2019
  */
 @Interceptor
 @Authenticated
-@Priority(1)
+@Priority(Interceptor.Priority.LIBRARY_BEFORE)
 public class AuthenticatedInterceptor {
 
     @Inject

@@ -8,8 +8,6 @@ import io.restassured.specification.RequestSpecification;
 
 /**
  * @author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com
- *         <br>
- *         Date: 11/10/2019
  */
 @QuarkusTest
 public class DenyAllJaxRsTest {

@@ -12,8 +12,6 @@ import io.restassured.specification.RequestSpecification;
 
 /**
  * @author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com
- *         <br>
- *         Date: 04/10/2019
  */
 @QuarkusTest
 public class CDIAccessTest {

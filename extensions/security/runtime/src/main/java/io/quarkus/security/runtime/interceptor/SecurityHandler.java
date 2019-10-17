@@ -8,8 +8,6 @@ import io.quarkus.arc.runtime.InterceptorBindings;
 
 /**
  * @author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com
- *         <br>
- *         Date: 05/10/2019
  */
 @Singleton
 public class SecurityHandler {

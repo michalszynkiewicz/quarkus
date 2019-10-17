@@ -9,12 +9,10 @@ import javax.interceptor.InvocationContext;
 
 /**
  * @author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com
- *         <br>
- *         Date: 05/10/2019
  */
 @Interceptor
 @PermitAll
-@Priority(1)
+@Priority(Interceptor.Priority.LIBRARY_BEFORE)
 public class PermitAllInterceptor {
 
     @Inject

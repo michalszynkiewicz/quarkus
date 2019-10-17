@@ -6,8 +6,6 @@ import javax.ws.rs.Path;
 
 /**
  * @author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com
- *         <br>
- *         Date: 11/10/2019
  */
 @Path("/permitAll")
 @PermitAll

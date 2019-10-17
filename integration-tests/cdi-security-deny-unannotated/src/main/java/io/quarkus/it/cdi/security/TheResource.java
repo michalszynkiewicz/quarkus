@@ -7,8 +7,6 @@ import javax.ws.rs.Path;
 
 /**
  * @author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com
- *         <br>
- *         Date: 04/10/2019
  */
 @Path("/api")
 public class TheResource {

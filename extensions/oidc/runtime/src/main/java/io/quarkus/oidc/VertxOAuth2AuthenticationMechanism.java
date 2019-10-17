@@ -9,6 +9,7 @@ import io.quarkus.security.credential.TokenCredential;
 import io.quarkus.security.identity.IdentityProviderManager;
 import io.quarkus.security.identity.SecurityIdentity;
 import io.quarkus.security.identity.request.TokenAuthenticationRequest;
+import io.quarkus.vertx.http.runtime.security.ChallengeData;
 import io.quarkus.vertx.http.runtime.security.HttpAuthenticationMechanism;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpServerRequest;
@@ -79,25 +80,12 @@ public class VertxOAuth2AuthenticationMechanism implements HttpAuthenticationMec
     }
 
     @Override
-    public CompletionStage<Boolean> sendChallenge(RoutingContext context) {
-        context.response().setStatusCode(challengeStatus());
-        context.response().headers().set(challengeHeader(), challengeContent());
-        return CompletableFuture.completedFuture(true);
-    }
-
-    @Override
-    public int challengeStatus() {
-        return 302;
-    }
-
-    @Override
-    public CharSequence challengeHeader() {
-        return HttpHeaders.LOCATION;
-    }
-
-    @Override
-    public String challengeContent() {
-        return authURI(authServerURI);
+    public CompletionStage<ChallengeData> getChallenge(RoutingContext context) {
+        ChallengeData result = new ChallengeData(
+                302,
+                HttpHeaders.LOCATION,
+                authURI(authServerURI));
+        return CompletableFuture.completedFuture(result);
     }
 
     private String authURI(String redirectURL) {

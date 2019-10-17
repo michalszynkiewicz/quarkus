@@ -13,8 +13,6 @@ import io.quarkus.arc.processor.AnnotationsTransformer;
 
 /**
  * @author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com
- *         <br>
- *         Date: 11/10/2019
  */
 public class DenyingUnannotatedTransformer implements AnnotationsTransformer {
 

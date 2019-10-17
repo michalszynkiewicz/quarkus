@@ -16,8 +16,6 @@ import io.quarkus.security.Authenticated;
 
 /**
  * @author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com
- *         <br>
- *         Date: 03/10/2019
  */
 public class SecurityAnnotationsRegistrar implements InterceptorBindingRegistrar {
 

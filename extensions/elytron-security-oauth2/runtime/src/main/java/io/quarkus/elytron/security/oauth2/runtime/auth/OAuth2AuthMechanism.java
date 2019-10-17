@@ -7,11 +7,13 @@ import javax.enterprise.context.ApplicationScoped;
 
 import org.jboss.logging.Logger;
 
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.quarkus.security.credential.TokenCredential;
 import io.quarkus.security.identity.IdentityProviderManager;
 import io.quarkus.security.identity.SecurityIdentity;
 import io.quarkus.security.identity.request.TokenAuthenticationRequest;
+import io.quarkus.vertx.http.runtime.security.ChallengeData;
 import io.quarkus.vertx.http.runtime.security.HttpAuthenticationMechanism;
 import io.vertx.ext.web.RoutingContext;
 
@@ -48,20 +50,11 @@ public class OAuth2AuthMechanism implements HttpAuthenticationMechanism {
     }
 
     @Override
-    public CompletionStage<Boolean> sendChallenge(RoutingContext context) {
-        context.response().headers().set(challengeHeader(), challengeContent());
-        context.response().setStatusCode(challengeStatus());
-        log.debugf("Sending Bearer {token} challenge for %s", context);
-        return CompletableFuture.completedFuture(true);
-    }
-
-    @Override
-    public int challengeStatus() {
-        return HttpResponseStatus.UNAUTHORIZED.code();
-    }
-
-    @Override
-    public String challengeContent() {
-        return "Bearer {token}";
+    public CompletionStage<ChallengeData> getChallenge(RoutingContext context) {
+        ChallengeData result = new ChallengeData(
+                HttpResponseStatus.UNAUTHORIZED.code(),
+                HttpHeaderNames.WWW_AUTHENTICATE,
+                "Bearer {token}");
+        return CompletableFuture.completedFuture(result);
     }
 }

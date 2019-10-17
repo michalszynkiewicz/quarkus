@@ -4,15 +4,14 @@ import static java.util.Arrays.asList;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.security.DenyAll;
 import javax.annotation.security.PermitAll;
@@ -27,8 +26,6 @@ import io.quarkus.security.runtime.UnauthorizedException;
 
 /**
  * @author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com
- *         <br>
- *         Date: 03/10/2019
  */
 @Singleton
 public class SecurityConstrainer {
@@ -36,18 +33,26 @@ public class SecurityConstrainer {
     private static final List<Class<? extends Annotation>> SECURITY_ANNOTATIONS = asList(Authenticated.class, DenyAll.class,
             PermitAll.class, RolesAllowed.class);
 
-    private final Map<Method, Optional<Check>> checkForMethod = new HashMap<>();
+    private final Map<Method, Optional<Check>> checkForMethod = new ConcurrentHashMap<>();
 
     @Inject
     SecurityIdentity identity;
 
     public void checkRoles(Method method, Collection<Annotation> interceptorBindings) {
-        getCheck(method, interceptorBindings)
-                .ifPresent(check -> check.apply(identity));
+        Optional<Check> check = getCheck(method, interceptorBindings);
+        if (check.isPresent()) {
+            check.get().apply(identity);
+        }
     }
 
     private Optional<Check> getCheck(Method method, Collection<Annotation> interceptorBindings) {
-        return checkForMethod.computeIfAbsent(method, m -> determineSecurityCheck(m, interceptorBindings));
+        Optional<Check> check = checkForMethod.get(method);
+        if (check == null) {
+            // intentionally no synchronization
+            check = determineSecurityCheck(method, interceptorBindings);
+            checkForMethod.put(method, check);
+        }
+        return check;
     }
 
     private Optional<Check> determineSecurityCheck(Method method, Collection<Annotation> interceptorBindings) {
@@ -82,18 +87,34 @@ public class SecurityConstrainer {
 
     private Annotation determineSecurityAnnotationFromBindings(Collection<Annotation> interceptorBindings,
             Supplier<String> annotationPlacement) {
-        List<Annotation> securityAnnotations = interceptorBindings.stream()
-                .filter(anno -> SECURITY_ANNOTATIONS.stream().anyMatch(c -> c.isInstance(anno)))
-                .collect(Collectors.toList());
+
+        List<Annotation> securityAnnotations = new ArrayList<>();
+        for (Annotation binding : interceptorBindings) {
+            if (isSecurityAnnotation(binding)) {
+                securityAnnotations.add(binding);
+            }
+        }
         return getExactlyOne(securityAnnotations, annotationPlacement);
     }
 
     private Annotation determineSecurityAnnotation(Annotation[] annotations, Supplier<String> annotationPlacement) {
-        List<Annotation> securityAnnotations = Stream.of(annotations)
-                .filter(ann -> SECURITY_ANNOTATIONS.contains(ann.annotationType()))
-                .collect(Collectors.toList());
-
+        List<Annotation> securityAnnotations = new ArrayList<>();
+        for (Annotation binding : annotations) {
+            if (isSecurityAnnotation(binding)) {
+                securityAnnotations.add(binding);
+            }
+        }
         return getExactlyOne(securityAnnotations, annotationPlacement);
+    }
+
+    private boolean isSecurityAnnotation(Annotation binding) {
+        boolean isSecurityAnnotation = false;
+        for (Class<? extends Annotation> annotationClass : SECURITY_ANNOTATIONS) {
+            if (annotationClass == binding.annotationType()) {
+                isSecurityAnnotation = true;
+            }
+        }
+        return isSecurityAnnotation;
     }
 
     private Annotation getExactlyOne(List<Annotation> securityAnnotations, Supplier<String> annotationPlacement) {

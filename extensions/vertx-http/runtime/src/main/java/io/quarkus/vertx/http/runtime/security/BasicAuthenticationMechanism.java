@@ -163,27 +163,19 @@ public class BasicAuthenticationMechanism implements HttpAuthenticationMechanism
     }
 
     @Override
-    public CompletionStage<Boolean> sendChallenge(RoutingContext context) {
+    public CompletionStage<ChallengeData> getChallenge(RoutingContext context) {
         if (silent) {
             //if this is silent we only send a challenge if the request contained auth headers
             //otherwise we assume another method will send the challenge
             String authHeader = context.request().headers().get(HttpHeaderNames.AUTHORIZATION);
             if (authHeader == null) {
-                return CompletableFuture.completedFuture(false);
+                return CompletableFuture.completedFuture(null);
             }
         }
-        context.response().headers().set(challengeHeader(), challengeContent());
-        context.response().setStatusCode(challengeStatus());
-        return CompletableFuture.completedFuture(true);
-    }
-
-    @Override
-    public int challengeStatus() {
-        return HttpResponseStatus.UNAUTHORIZED.code();
-    }
-
-    @Override
-    public String challengeContent() {
-        return challenge;
+        ChallengeData result = new ChallengeData(
+                HttpResponseStatus.UNAUTHORIZED.code(),
+                HttpHeaderNames.WWW_AUTHENTICATE,
+                challenge);
+        return CompletableFuture.completedFuture(result);
     }
 }

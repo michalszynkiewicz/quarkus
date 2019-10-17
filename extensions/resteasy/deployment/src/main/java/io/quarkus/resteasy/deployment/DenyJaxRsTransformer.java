@@ -3,26 +3,20 @@ package io.quarkus.resteasy.deployment;
 import static io.quarkus.security.deployment.SecurityTransformerUtils.DENY_ALL;
 import static io.quarkus.security.deployment.SecurityTransformerUtils.hasSecurityAnnotation;
 
-import java.lang.reflect.Modifier;
-import java.util.Objects;
-
 import org.jboss.jandex.AnnotationTarget;
 import org.jboss.jandex.ClassInfo;
-import org.jboss.jandex.IndexView;
+import org.jboss.resteasy.spi.ResteasyDeployment;
 
 import io.quarkus.arc.processor.AnnotationsTransformer;
-import io.quarkus.resteasy.common.deployment.ResteasyDotNames;
 
 /**
  * @author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com
- *         <br>
- *         Date: 11/10/2019
  */
 public class DenyJaxRsTransformer implements AnnotationsTransformer {
-    private final IndexView index;
+    private final ResteasyDeployment resteasyDeployment;
 
-    public DenyJaxRsTransformer(IndexView index) {
-        this.index = index;
+    public DenyJaxRsTransformer(ResteasyDeployment resteasyDeployment) {
+        this.resteasyDeployment = resteasyDeployment;
     }
 
     @Override
@@ -39,18 +33,7 @@ public class DenyJaxRsTransformer implements AnnotationsTransformer {
     }
 
     private boolean isJaxRsResource(ClassInfo classInfo) {
-        return !Modifier.isInterface(classInfo.flags())
-                && (implementsJaxRsInterface(classInfo) || hasPathAnnotation(classInfo));
-    }
-
-    private boolean hasPathAnnotation(ClassInfo classInfo) {
-        return classInfo.classAnnotation(ResteasyDotNames.PATH) != null;
-    }
-
-    private boolean implementsJaxRsInterface(ClassInfo classInfo) {
-        return classInfo.interfaceNames().stream()
-                .map(index::getClassByName)
-                .filter(Objects::nonNull)
-                .anyMatch(this::hasPathAnnotation);
+        String className = classInfo.name().toString();
+        return resteasyDeployment.getScannedResourceClasses().contains(className);
     }
 }
