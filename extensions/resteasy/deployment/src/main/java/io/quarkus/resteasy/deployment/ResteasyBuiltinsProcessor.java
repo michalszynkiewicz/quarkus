@@ -14,16 +14,16 @@ import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
 import io.quarkus.resteasy.common.spi.ResteasyJaxrsProviderBuildItem;
 import io.quarkus.resteasy.runtime.ExceptionMapperRecorder;
 import io.quarkus.resteasy.runtime.ForbiddenExceptionMapper;
+import io.quarkus.resteasy.runtime.JaxRsSecurityConfig;
 import io.quarkus.resteasy.runtime.NotFoundExceptionMapper;
 import io.quarkus.resteasy.runtime.UnauthorizedExceptionMapper;
 import io.quarkus.resteasy.server.common.deployment.ResteasyDeploymentBuildItem;
-import io.quarkus.security.runtime.SecurityBuildTimeConfig;
 import io.quarkus.undertow.deployment.StaticResourceFilesBuildItem;
 
 public class ResteasyBuiltinsProcessor {
     @BuildStep
     void setUpDenyAllJaxRs(CombinedIndexBuildItem index,
-            SecurityBuildTimeConfig config,
+            JaxRsSecurityConfig config,
             ResteasyDeploymentBuildItem resteasyDeployment,
             BuildProducer<AnnotationsTransformerBuildItem> transformers) {
         if (config.denyJaxRs) {

@@ -73,9 +73,6 @@
         <module>mongodb-panache</module>
         <module>narayana-stm</module>
         <module>elytron-security-jdbc</module>
-        <module>cdi-security</module>
-        <module>cdi-security-deny-all-jaxrs</module>
-        <module>cdi-security-deny-unannotated</module>
     </modules>
 
     <build>

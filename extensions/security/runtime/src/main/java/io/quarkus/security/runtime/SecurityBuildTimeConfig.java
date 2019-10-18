@@ -29,9 +29,4 @@ public class SecurityBuildTimeConfig {
     @ConfigItem(name = "deny.unannotated", defaultValue = "false")
     public boolean denyUnannotated;
 
-    /**
-     * if set to true, access to all JAX-RS resources will be denied by default
-     */
-    @ConfigItem(name = "deny.jaxrs", defaultValue = "false")
-    public boolean denyJaxRs;
 }
