@@ -139,16 +139,19 @@ public class SecurityConstrainer {
 
         @Override
         public void apply(SecurityIdentity identity) {
-            if (identity.isAnonymous()) {
-                throw new UnauthorizedException();
-            }
-            for (String role : allowedRoles) {
-                Set<String> roles = identity.getRoles();
-                if (roles.contains(role)) {
-                    return;
+            Set<String> roles = identity.getRoles();
+            if (roles != null) {
+                for (String role : allowedRoles) {
+                    if (roles.contains(role)) {
+                        return;
+                    }
                 }
             }
-            throw new ForbiddenException();
+            if (identity.isAnonymous()) {
+                throw new UnauthorizedException();
+            } else {
+                throw new ForbiddenException();
+            }
         }
     }
 
