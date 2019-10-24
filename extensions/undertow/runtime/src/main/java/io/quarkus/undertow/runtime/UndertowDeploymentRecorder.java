@@ -5,6 +5,7 @@ import java.math.BigInteger;
 import java.net.SocketAddress;
 import java.nio.file.Path;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.EventListener;
 import java.util.List;
@@ -342,7 +343,10 @@ public class UndertowDeploymentRecorder {
         return new Handler<RoutingContext>() {
             @Override
             public void handle(RoutingContext event) {
+                Duration readTimeout = httpConfiguration.readTimeout;
+                long blockingReadTimeout = readTimeout.toMillis();
                 VertxHttpExchange exchange = new VertxHttpExchange(event.request(), allocator, executorService, event);
+                event.vertx().setTimer(blockingReadTimeout, ignored -> exchange.markTimedOut());
                 Optional<MemorySize> maxBodySize = httpConfiguration.limits.maxBodySize;
                 if (maxBodySize.isPresent()) {
                     exchange.setMaxEntitySize(maxBodySize.get().asLongValue());

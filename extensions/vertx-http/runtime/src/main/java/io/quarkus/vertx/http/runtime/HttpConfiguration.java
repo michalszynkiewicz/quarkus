@@ -1,5 +1,6 @@
 package io.quarkus.vertx.http.runtime;
 
+import java.time.Duration;
 import java.util.OptionalInt;
 
 import io.quarkus.runtime.LaunchMode;
@@ -79,6 +80,12 @@ public class HttpConfiguration {
      * Server limits configuration
      */
     public ServerLimitsConfig limits;
+
+    /**
+     * Http connection idle timeout in milliseconds
+     */
+    @ConfigItem(defaultValue = "30S", name = "read-timeout")
+    public Duration readTimeout;
 
     /**
      * Request body related settings
