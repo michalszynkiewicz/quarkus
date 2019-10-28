@@ -61,7 +61,7 @@ public class RestAssuredURLManager {
             try {
                 oldPort = (Integer) portField.get(null);
                 int port = useSecureConnection ? getPortFromConfig("quarkus.https.test-port", DEFAULT_HTTPS_PORT)
-                        : getPortFromConfig("quarkus.http.test-port", DEFAULT_HTTP_PORT);
+                        : getHttpPort();
                 portField.set(null, port);
             } catch (IllegalAccessException e) {
                 e.printStackTrace();
@@ -71,8 +71,7 @@ public class RestAssuredURLManager {
             try {
                 oldBaseURI = (String) baseURIField.get(null);
                 final String protocol = useSecureConnection ? "https://" : "http://";
-                String baseURI = protocol + ConfigProvider.getConfig().getOptionalValue("quarkus.http.host", String.class)
-                        .orElse("localhost");
+                String baseURI = protocol + getHost();
                 baseURIField.set(null, baseURI);
             } catch (IllegalAccessException e) {
                 e.printStackTrace();
@@ -90,6 +89,15 @@ public class RestAssuredURLManager {
                 e.printStackTrace();
             }
         }
+    }
+
+    public static String getHost() {
+        return ConfigProvider.getConfig().getOptionalValue("quarkus.http.host", String.class)
+                .orElse("localhost");
+    }
+
+    public static int getHttpPort() {
+        return getPortFromConfig("quarkus.http.test-port", DEFAULT_HTTP_PORT);
     }
 
     public void clearURL() {
