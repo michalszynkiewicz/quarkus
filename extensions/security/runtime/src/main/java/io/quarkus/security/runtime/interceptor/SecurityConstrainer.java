@@ -11,7 +11,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import io.quarkus.security.identity.SecurityIdentity;
-import io.quarkus.security.runtime.SecurityCheckStorage;
 
 /**
  * @author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com

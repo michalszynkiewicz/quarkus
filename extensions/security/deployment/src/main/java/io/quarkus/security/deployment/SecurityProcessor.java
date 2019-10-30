@@ -12,8 +12,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import javax.enterprise.context.ApplicationScoped;
-
 import org.jboss.jandex.AnnotationInstance;
 import org.jboss.jandex.AnnotationValue;
 import org.jboss.jandex.ClassInfo;
@@ -24,27 +22,31 @@ import org.jboss.logging.Logger;
 
 import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
 import io.quarkus.arc.deployment.AnnotationsTransformerBuildItem;
-import io.quarkus.arc.deployment.BeanArchiveIndexBuildItem;
-import io.quarkus.arc.deployment.BeanRegistrationPhaseBuildItem;
-import io.quarkus.arc.deployment.GeneratedBeanBuildItem;
+import io.quarkus.arc.deployment.BeanRegistrarBuildItem;
 import io.quarkus.arc.deployment.InterceptorBindingRegistrarBuildItem;
 import io.quarkus.arc.processor.AnnotationStore;
-import io.quarkus.arc.processor.BuildExtension;
+import io.quarkus.arc.processor.BeanConfigurator;
+import io.quarkus.arc.processor.BeanRegistrar;
+import io.quarkus.arc.processor.BuiltinScope;
 import io.quarkus.deployment.Capabilities;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
+import io.quarkus.deployment.builditem.ApplicationIndexBuildItem;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
-import io.quarkus.gizmo.ClassCreator;
-import io.quarkus.gizmo.ClassOutput;
 import io.quarkus.gizmo.MethodCreator;
 import io.quarkus.gizmo.MethodDescriptor;
 import io.quarkus.gizmo.ResultHandle;
 import io.quarkus.security.runtime.IdentityProviderManagerCreator;
 import io.quarkus.security.runtime.SecurityBuildTimeConfig;
-import io.quarkus.security.runtime.SecurityCheckStorage;
 import io.quarkus.security.runtime.SecurityIdentityAssociation;
 import io.quarkus.security.runtime.SecurityIdentityProxy;
+import io.quarkus.security.runtime.interceptor.AuthenticatedInterceptor;
+import io.quarkus.security.runtime.interceptor.DenyAllInterceptor;
+import io.quarkus.security.runtime.interceptor.SecurityCheckStorage;
+import io.quarkus.security.runtime.interceptor.PermitAllInterceptor;
+import io.quarkus.security.runtime.interceptor.RolesAllowedInterceptor;
+import io.quarkus.security.runtime.interceptor.SecurityCheckStorageBuilder;
 import io.quarkus.security.runtime.interceptor.SecurityConstrainer;
 import io.quarkus.security.runtime.interceptor.SecurityHandler;
 
@@ -98,81 +100,83 @@ public class SecurityProcessor {
     void registerSecurityInterceptors(BuildProducer<InterceptorBindingRegistrarBuildItem> registrars,
             BuildProducer<AdditionalBeanBuildItem> beans) {
         registrars.produce(new InterceptorBindingRegistrarBuildItem(new SecurityAnnotationsRegistrar()));
-
-        Set<DotName> bindingNames = SecurityAnnotationsRegistrar.SECURITY_BINDINGS.keySet();
-        String[] bindingClassNames = new String[bindingNames.size()];
-        int i = 0;
-        for (DotName name : bindingNames) {
-            bindingClassNames[i++] = name.toString();
-        }
-
-        beans.produce(new AdditionalBeanBuildItem(bindingClassNames));
+        Class[] interceptors = { AuthenticatedInterceptor.class, DenyAllInterceptor.class, PermitAllInterceptor.class,
+                RolesAllowedInterceptor.class };
+        beans.produce(new AdditionalBeanBuildItem(interceptors));
         beans.produce(new AdditionalBeanBuildItem(SecurityHandler.class, SecurityConstrainer.class));
     }
 
     @BuildStep
-    void gatherSecurityChecks(BuildProducer<GeneratedBeanBuildItem> generatedBean,
-            BeanArchiveIndexBuildItem indexBuildItem,
-            BeanRegistrationPhaseBuildItem contextRegistration) {
-        Set<DotName> securityAnnotations = SecurityAnnotationsRegistrar.SECURITY_BINDINGS.keySet();
-        AnnotationStore annotationStore = contextRegistration.getContext().get(BuildExtension.Key.ANNOTATION_STORE);
-        Set<ClassInfo> classesWithSecurity = new HashSet<>();
+    void gatherSecurityChecks(BuildProducer<BeanRegistrarBuildItem> beanRegistrars,
+            ApplicationIndexBuildItem indexBuildItem) {
 
-        Collection<ClassInfo> classes = indexBuildItem.getIndex().getKnownClasses();
-        for (ClassInfo classInfo : classes) {
-            if (annotationStore.hasAnyAnnotation(classInfo, securityAnnotations)) {
-                classesWithSecurity.add(classInfo);
-            }
-        }
+        beanRegistrars.produce(new BeanRegistrarBuildItem(new BeanRegistrar() {
 
-        Map<MethodInfo, AnnotationInstance> methodAnnotations = gatherSecurityAnnotations(securityAnnotations,
-                classesWithSecurity, annotationStore);
-
-        createSecurityStorageBean(generatedBean, methodAnnotations);
-    }
-
-    private void createSecurityStorageBean(BuildProducer<GeneratedBeanBuildItem> generatedBean,
-            Map<MethodInfo, AnnotationInstance> methodAnnotations) {
-        ClassOutput classOutput = new ClassOutput() {
             @Override
-            public void write(String name, byte[] data) {
-                generatedBean.produce(new GeneratedBeanBuildItem(name, data));
+            public void register(RegistrationContext registrationContext) {
+                Set<DotName> securityAnnotations = SecurityAnnotationsRegistrar.SECURITY_BINDINGS.keySet();
+                AnnotationStore annotationStore = registrationContext.get(Key.ANNOTATION_STORE);
+                Set<ClassInfo> classesWithSecurity = new HashSet<>();
+
+                Collection<ClassInfo> classes = indexBuildItem.getIndex().getKnownClasses();
+                for (ClassInfo classInfo : classes) {
+                    boolean hasSecurityAnnotations = annotationStore.hasAnyAnnotation(classInfo, securityAnnotations);
+                    if (!hasSecurityAnnotations) {
+                        for (MethodInfo method : classInfo.methods()) {
+                            if (annotationStore.hasAnyAnnotation(method, securityAnnotations)) {
+                                hasSecurityAnnotations = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (hasSecurityAnnotations) {
+                        classesWithSecurity.add(classInfo);
+                    }
+                }
+
+                Map<MethodInfo, AnnotationInstance> methodAnnotations = gatherSecurityAnnotations(securityAnnotations,
+                        classesWithSecurity, annotationStore);
+
+                DotName name = DotName.createSimple(SecurityCheckStorage.class.getName());
+
+                BeanConfigurator<Object> configurator = registrationContext.configure(name);
+                configurator.addType(DotName.createSimple(SecurityCheckStorage.class.getName()));
+                configurator.addType(DotName.createSimple(SecurityCheckStorage.class.getName()));
+                configurator.scope(BuiltinScope.APPLICATION.getInfo());
+                configurator.creator(m -> {
+                    ResultHandle storageBuilder = m
+                            .newInstance(MethodDescriptor.ofConstructor(SecurityCheckStorageBuilder.class));
+                    for (Map.Entry<MethodInfo, AnnotationInstance> methodEntry : methodAnnotations.entrySet()) {
+                        registerSecuredMethod(storageBuilder, m, methodEntry);
+                    }
+                    ResultHandle ret = m.invokeVirtualMethod(
+                            MethodDescriptor.ofMethod(SecurityCheckStorageBuilder.class, "create",
+                                    SecurityCheckStorage.class),
+                            storageBuilder);
+                    m.returnValue(ret);
+                });
+                configurator.done();
             }
-        };
-
-        ClassCreator classCreator = ClassCreator.builder().classOutput(classOutput)
-                .className("io.quarkus.security.runtime.SecurityCheckStorageImpl")
-                .superClass(SecurityCheckStorage.class)
-                .build();
-        classCreator.addAnnotation(ApplicationScoped.class);
-
-        try (MethodCreator ctor = classCreator.getMethodCreator("<init>", void.class)) {
-            ctor.invokeSpecialMethod(MethodDescriptor.ofMethod(Object.class, "<init>", void.class), ctor.getThis());
-            for (Map.Entry<MethodInfo, AnnotationInstance> methodEntry : methodAnnotations.entrySet()) {
-                registerSecuredMethod(ctor, methodEntry);
-            }
-
-            ctor.returnValue(null);
-        }
-
-        classCreator.close();
+        }));
     }
 
-    private void registerSecuredMethod(MethodCreator ctor, Map.Entry<MethodInfo, AnnotationInstance> methodEntry) {
+    private void registerSecuredMethod(ResultHandle checkStorage,
+            MethodCreator methodCreator,
+            Map.Entry<MethodInfo, AnnotationInstance> methodEntry) {
         try {
             MethodInfo method = methodEntry.getKey();
-            ResultHandle aClass = ctor.loadClass(method.declaringClass().name().toString());
-            ResultHandle methodName = ctor.load(method.name());
-            ResultHandle params = paramTypes(ctor, method.parameters());
+            ResultHandle aClass = methodCreator.loadClass(method.declaringClass().name().toString());
+            ResultHandle methodName = methodCreator.load(method.name());
+            ResultHandle params = paramTypes(methodCreator, method.parameters());
 
             AnnotationInstance instance = methodEntry.getValue();
-            ResultHandle securityAnnotation = ctor.loadClass(instance.name().toString());
+            ResultHandle securityAnnotation = methodCreator.loadClass(instance.name().toString());
 
-            ResultHandle annotationParameters = annotationValues(ctor, instance);
+            ResultHandle annotationParameters = annotationValues(methodCreator, instance);
 
-            Method registerAnnotation = SecurityCheckStorage.class.getDeclaredMethod("registerAnnotation", Class.class,
+            Method registerAnnotation = SecurityCheckStorageBuilder.class.getDeclaredMethod("registerAnnotation", Class.class,
                     String.class, Class[].class, Class.class, String[].class);
-            ctor.invokeVirtualMethod(MethodDescriptor.ofMethod(registerAnnotation), ctor.getThis(),
+            methodCreator.invokeVirtualMethod(MethodDescriptor.ofMethod(registerAnnotation), checkStorage,
                     aClass, methodName, params, securityAnnotation, annotationParameters);
         } catch (NoSuchMethodException e) {
             throw new IllegalStateException("registerAnnotation method not found on on SecurityCheckStorage", e);
@@ -188,6 +192,7 @@ public class SecurityProcessor {
             for (String val : values) {
                 methodCreator.writeArrayValue(result, i, methodCreator.load(val));
             }
+            return result;
         }
         return methodCreator.loadNull();
     }
