@@ -5,12 +5,14 @@ import static io.quarkus.deployment.annotations.ExecutionTime.STATIC_INIT;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.jboss.jandex.ClassInfo;
+
 import io.quarkus.arc.deployment.AnnotationsTransformerBuildItem;
 import io.quarkus.deployment.IsDevelopment;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.Record;
-import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
+import io.quarkus.deployment.builditem.ApplicationIndexBuildItem;
 import io.quarkus.resteasy.common.spi.ResteasyJaxrsProviderBuildItem;
 import io.quarkus.resteasy.runtime.ExceptionMapperRecorder;
 import io.quarkus.resteasy.runtime.ForbiddenExceptionMapper;
@@ -18,17 +20,25 @@ import io.quarkus.resteasy.runtime.JaxRsSecurityConfig;
 import io.quarkus.resteasy.runtime.NotFoundExceptionMapper;
 import io.quarkus.resteasy.runtime.UnauthorizedExceptionMapper;
 import io.quarkus.resteasy.server.common.deployment.ResteasyDeploymentBuildItem;
+import io.quarkus.security.spi.DeniedClassBuildItem;
 import io.quarkus.undertow.deployment.StaticResourceFilesBuildItem;
 
 public class ResteasyBuiltinsProcessor {
     @BuildStep
-    void setUpDenyAllJaxRs(CombinedIndexBuildItem index,
+    void setUpDenyAllJaxRs(ApplicationIndexBuildItem index,
             JaxRsSecurityConfig config,
             ResteasyDeploymentBuildItem resteasyDeployment,
+            BuildProducer<DeniedClassBuildItem> deniedClasses,
             BuildProducer<AnnotationsTransformerBuildItem> transformers) {
         if (config.denyJaxRs) {
             DenyJaxRsTransformer transformer = new DenyJaxRsTransformer(resteasyDeployment.getDeployment());
             transformers.produce(new AnnotationsTransformerBuildItem(transformer));
+
+            for (ClassInfo knownClass : index.getIndex().getKnownClasses()) {
+                if (DenyJaxRsTransformer.shouldBeDenied(knownClass, resteasyDeployment.getDeployment())) {
+                    deniedClasses.produce(new DeniedClassBuildItem(knownClass.name()));
+                }
+            }
         }
     }
 

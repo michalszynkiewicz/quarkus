@@ -24,10 +24,14 @@ public class DenyingUnannotatedTransformer implements AnnotationsTransformer {
     @Override
     public void transform(TransformationContext transformationContext) {
         ClassInfo classInfo = transformationContext.getTarget().asClass();
-        List<MethodInfo> methods = classInfo.methods();
-        if (!hasSecurityAnnotation(classInfo)
-                && methods.stream().anyMatch(SecurityTransformerUtils::hasSecurityAnnotation)) {
+        if (shouldDenyMethodsByDefault(classInfo)) {
             transformationContext.transform().add(DENY_ALL).done();
         }
+    }
+
+    public static boolean shouldDenyMethodsByDefault(ClassInfo classInfo) {
+        List<MethodInfo> methods = classInfo.methods();
+        return (!hasSecurityAnnotation(classInfo)
+                && methods.stream().anyMatch(SecurityTransformerUtils::hasSecurityAnnotation));
     }
 }

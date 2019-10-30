@@ -1,5 +1,7 @@
 package io.quarkus.security.deployment;
 
+import static io.quarkus.security.deployment.SecurityTransformerUtils.DENY_ALL;
+
 import java.lang.reflect.Method;
 import java.security.Provider;
 import java.security.Security;
@@ -7,32 +9,30 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.enterprise.context.ApplicationScoped;
 
 import org.jboss.jandex.AnnotationInstance;
-import org.jboss.jandex.AnnotationValue;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
+import org.jboss.jandex.Index;
 import org.jboss.jandex.MethodInfo;
 import org.jboss.jandex.Type;
 import org.jboss.logging.Logger;
 
 import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
 import io.quarkus.arc.deployment.AnnotationsTransformerBuildItem;
-import io.quarkus.arc.deployment.BeanArchiveIndexBuildItem;
-import io.quarkus.arc.deployment.BeanRegistrationPhaseBuildItem;
 import io.quarkus.arc.deployment.GeneratedBeanBuildItem;
 import io.quarkus.arc.deployment.InterceptorBindingRegistrarBuildItem;
 import io.quarkus.arc.processor.AnnotationStore;
-import io.quarkus.arc.processor.BuildExtension;
 import io.quarkus.deployment.Capabilities;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
+import io.quarkus.deployment.builditem.ApplicationIndexBuildItem;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.gizmo.ClassCreator;
@@ -45,8 +45,13 @@ import io.quarkus.security.runtime.SecurityBuildTimeConfig;
 import io.quarkus.security.runtime.SecurityCheckStorage;
 import io.quarkus.security.runtime.SecurityIdentityAssociation;
 import io.quarkus.security.runtime.SecurityIdentityProxy;
+import io.quarkus.security.runtime.interceptor.AuthenticatedInterceptor;
+import io.quarkus.security.runtime.interceptor.DenyAllInterceptor;
+import io.quarkus.security.runtime.interceptor.PermitAllInterceptor;
+import io.quarkus.security.runtime.interceptor.RolesAllowedInterceptor;
 import io.quarkus.security.runtime.interceptor.SecurityConstrainer;
 import io.quarkus.security.runtime.interceptor.SecurityHandler;
+import io.quarkus.security.spi.DeniedClassBuildItem;
 
 public class SecurityProcessor {
 
@@ -87,10 +92,19 @@ public class SecurityProcessor {
     }
 
     @BuildStep
-    void transformSecurityAnnotations(BuildProducer<AnnotationsTransformerBuildItem> transformers,
+    void transformSecurityAnnotations(
+            BuildProducer<AnnotationsTransformerBuildItem> transformers,
+            BuildProducer<DeniedClassBuildItem> deniedClasses,
+            ApplicationIndexBuildItem applicationIndex,
             SecurityBuildTimeConfig config) {
         if (config.denyUnannotated) {
             transformers.produce(new AnnotationsTransformerBuildItem(new DenyingUnannotatedTransformer()));
+
+            for (ClassInfo classInfo : applicationIndex.getIndex().getKnownClasses()) {
+                if (DenyingUnannotatedTransformer.shouldDenyMethodsByDefault(classInfo)) {
+                    deniedClasses.produce(new DeniedClassBuildItem(classInfo.name()));
+                }
+            }
         }
     }
 
@@ -98,41 +112,47 @@ public class SecurityProcessor {
     void registerSecurityInterceptors(BuildProducer<InterceptorBindingRegistrarBuildItem> registrars,
             BuildProducer<AdditionalBeanBuildItem> beans) {
         registrars.produce(new InterceptorBindingRegistrarBuildItem(new SecurityAnnotationsRegistrar()));
-
-        Set<DotName> bindingNames = SecurityAnnotationsRegistrar.SECURITY_BINDINGS.keySet();
-        String[] bindingClassNames = new String[bindingNames.size()];
-        int i = 0;
-        for (DotName name : bindingNames) {
-            bindingClassNames[i++] = name.toString();
-        }
-
-        beans.produce(new AdditionalBeanBuildItem(bindingClassNames));
+        Class[] interceptors = { AuthenticatedInterceptor.class, DenyAllInterceptor.class, PermitAllInterceptor.class,
+                RolesAllowedInterceptor.class };
+        beans.produce(new AdditionalBeanBuildItem(interceptors));
         beans.produce(new AdditionalBeanBuildItem(SecurityHandler.class, SecurityConstrainer.class));
     }
 
     @BuildStep
-    void gatherSecurityChecks(BuildProducer<GeneratedBeanBuildItem> generatedBean,
-            BeanArchiveIndexBuildItem indexBuildItem,
-            BeanRegistrationPhaseBuildItem contextRegistration) {
+    void gatherSecuredMethods(ApplicationIndexBuildItem applicationIndex,
+            List<DeniedClassBuildItem> deniedClassBuildItem,
+            SecurityBuildTimeConfig config,
+            BuildProducer<SecuredMethodBuildItem> securedMethods) {
         Set<DotName> securityAnnotations = SecurityAnnotationsRegistrar.SECURITY_BINDINGS.keySet();
-        AnnotationStore annotationStore = contextRegistration.getContext().get(BuildExtension.Key.ANNOTATION_STORE);
-        Set<ClassInfo> classesWithSecurity = new HashSet<>();
+        Index index = applicationIndex.getIndex();
+        Set<DotName> deniedClasses = deniedClassBuildItem.stream()
+                .map(DeniedClassBuildItem::getName)
+                .collect(Collectors.toSet());
 
-        Collection<ClassInfo> classes = indexBuildItem.getIndex().getKnownClasses();
-        for (ClassInfo classInfo : classes) {
-            if (annotationStore.hasAnyAnnotation(classInfo, securityAnnotations)) {
-                classesWithSecurity.add(classInfo);
+        for (ClassInfo classInfo : index.getKnownClasses()) {
+            AnnotationInstance classLevelAnnotation = getSingle(classInfo.classAnnotations(), securityAnnotations);
+            boolean denyByDefault = false;
+            if (classLevelAnnotation == null && deniedClasses.contains(classInfo.name())) {
+                denyByDefault = true;
+            }
+
+            for (MethodInfo methodInfo : classInfo.methods()) {
+                AnnotationInstance methodLevelAnnotation = getSingle(methodInfo.annotations(), securityAnnotations);
+
+                methodLevelAnnotation = methodLevelAnnotation != null ? methodLevelAnnotation : classLevelAnnotation;
+
+                if (methodLevelAnnotation != null) {
+                    securedMethods.produce(new SecuredMethodBuildItem(methodInfo, methodLevelAnnotation));
+                } else if (denyByDefault) {
+                    securedMethods.produce(new SecuredMethodBuildItem(methodInfo, DENY_ALL, null));
+                }
             }
         }
-
-        Map<MethodInfo, AnnotationInstance> methodAnnotations = gatherSecurityAnnotations(securityAnnotations,
-                classesWithSecurity, annotationStore);
-
-        createSecurityStorageBean(generatedBean, methodAnnotations);
     }
 
-    private void createSecurityStorageBean(BuildProducer<GeneratedBeanBuildItem> generatedBean,
-            Map<MethodInfo, AnnotationInstance> methodAnnotations) {
+    @BuildStep
+    void createSecurityStorageBean(BuildProducer<GeneratedBeanBuildItem> generatedBean,
+            List<SecuredMethodBuildItem> securedMethods) {
         ClassOutput classOutput = new ClassOutput() {
             @Override
             public void write(String name, byte[] data) {
@@ -146,10 +166,10 @@ public class SecurityProcessor {
                 .build();
         classCreator.addAnnotation(ApplicationScoped.class);
 
-        try (MethodCreator ctor = classCreator.getMethodCreator("<init>", void.class)) {
-            ctor.invokeSpecialMethod(MethodDescriptor.ofMethod(Object.class, "<init>", void.class), ctor.getThis());
-            for (Map.Entry<MethodInfo, AnnotationInstance> methodEntry : methodAnnotations.entrySet()) {
-                registerSecuredMethod(ctor, methodEntry);
+        try (MethodCreator ctor = classCreator.getMethodCreator("<init>", "V")) {
+            ctor.invokeSpecialMethod(MethodDescriptor.ofConstructor(SecurityCheckStorage.class), ctor.getThis());
+            for (SecuredMethodBuildItem securedMethodBuildItem : securedMethods) {
+                registerSecuredMethod(ctor, securedMethodBuildItem);
             }
 
             ctor.returnValue(null);
@@ -158,17 +178,16 @@ public class SecurityProcessor {
         classCreator.close();
     }
 
-    private void registerSecuredMethod(MethodCreator ctor, Map.Entry<MethodInfo, AnnotationInstance> methodEntry) {
+    private void registerSecuredMethod(MethodCreator ctor, SecuredMethodBuildItem securedMethod) {
         try {
-            MethodInfo method = methodEntry.getKey();
+            MethodInfo method = securedMethod.getMethodInfo();
             ResultHandle aClass = ctor.loadClass(method.declaringClass().name().toString());
             ResultHandle methodName = ctor.load(method.name());
             ResultHandle params = paramTypes(ctor, method.parameters());
 
-            AnnotationInstance instance = methodEntry.getValue();
-            ResultHandle securityAnnotation = ctor.loadClass(instance.name().toString());
+            ResultHandle securityAnnotation = ctor.loadClass(securedMethod.annotationClass().toString());
 
-            ResultHandle annotationParameters = annotationValues(ctor, instance);
+            ResultHandle annotationParameters = annotationValues(ctor, securedMethod.value());
 
             Method registerAnnotation = SecurityCheckStorage.class.getDeclaredMethod("registerAnnotation", Class.class,
                     String.class, Class[].class, Class.class, String[].class);
@@ -179,15 +198,14 @@ public class SecurityProcessor {
         }
     }
 
-    private ResultHandle annotationValues(MethodCreator methodCreator, AnnotationInstance instance) {
-        AnnotationValue value = instance.value();
-        if (value != null && value.asStringArray() != null) {
-            String[] values = value.asStringArray();
+    private ResultHandle annotationValues(MethodCreator methodCreator, String[] values) {
+        if (values != null) {
             ResultHandle result = methodCreator.newArray(String.class, methodCreator.load(values.length));
             int i = 0;
             for (String val : values) {
                 methodCreator.writeArrayValue(result, i, methodCreator.load(val));
             }
+            return result;
         }
         return methodCreator.loadNull();
     }
