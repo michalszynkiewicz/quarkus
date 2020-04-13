@@ -25,6 +25,7 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-vertx-core</artifactId>
         </dependency>
+        <!--  mstodo check if can be dropped -->
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-vertx</artifactId>
