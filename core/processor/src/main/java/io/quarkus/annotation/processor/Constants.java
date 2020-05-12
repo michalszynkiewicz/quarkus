@@ -51,6 +51,7 @@ final public class Constants {
     public static final String MEMORY_SIZE_TYPE = "io.quarkus.runtime.configuration.MemorySize";
     public static final String ANNOTATION_CONFIG_ITEM = "io.quarkus.runtime.annotations.ConfigItem";
     public static final String ANNOTATION_BUILD_STEP = "io.quarkus.deployment.annotations.BuildStep";
+    public static final String ANNOTATION_PRE_BUILD_STEP = "io.quarkus.deployment.annotations.PreBuildStep";
     public static final String ANNOTATION_CONFIG_ROOT = "io.quarkus.runtime.annotations.ConfigRoot";
     public static final String ANNOTATION_DEFAULT_CONVERTER = "io.quarkus.runtime.annotations.DefaultConverter";
     public static final String ANNOTATION_CONVERT_WITH = "io.quarkus.runtime.annotations.ConvertWith";
@@ -132,6 +133,7 @@ final public class Constants {
         ALIASED_TYPES.put(Path.class.getName(), "path");
         ALIASED_TYPES.put(String.class.getName(), "string");
         SUPPORTED_ANNOTATIONS_TYPES.add(ANNOTATION_BUILD_STEP);
+        SUPPORTED_ANNOTATIONS_TYPES.add(ANNOTATION_PRE_BUILD_STEP);
         SUPPORTED_ANNOTATIONS_TYPES.add(ANNOTATION_CONFIG_GROUP);
         SUPPORTED_ANNOTATIONS_TYPES.add(ANNOTATION_CONFIG_ROOT);
         SUPPORTED_ANNOTATIONS_TYPES.add(ANNOTATION_TEMPLATE);
