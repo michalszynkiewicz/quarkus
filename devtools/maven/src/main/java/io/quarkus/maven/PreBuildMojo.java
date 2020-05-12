@@ -159,7 +159,6 @@ public class PreBuildMojo extends AbstractMojo {
                         method.setAccessible(true);
                     }
                     // mstodo support method parameters?
-                    // mstodo for the first run, add a static context somewhere
                     method.invoke(preBuildStepObject);
                 }
             }

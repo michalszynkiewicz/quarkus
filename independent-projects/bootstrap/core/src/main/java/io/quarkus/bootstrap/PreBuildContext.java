@@ -1,10 +1,9 @@
 package io.quarkus.bootstrap;
 
-import io.quarkus.bootstrap.resolver.AppModelResolver;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 
-import org.apache.maven.project.MavenProject;
+import io.quarkus.bootstrap.resolver.AppModelResolver;
 
 public class PreBuildContext {
     // mstodo change to build item?
@@ -19,9 +18,9 @@ public class PreBuildContext {
     public final Consumer<Path> testSourceRegistrar;
 
     private PreBuildContext(AppModelResolver appModelResolver,
-                            Path buildDir,
-                            Consumer<Path> compileSourceRegistrar,
-                            Consumer<Path> testSourceRegistrar) {
+            Path buildDir,
+            Consumer<Path> compileSourceRegistrar,
+            Consumer<Path> testSourceRegistrar) {
         this.appModelResolver = appModelResolver;
         this.buildDir = buildDir;
         this.compileSourceRegistrar = compileSourceRegistrar;
@@ -33,9 +32,9 @@ public class PreBuildContext {
     }
 
     public static void initialize(AppModelResolver appModelResolver,
-                                  Path buildDir,
-                                  Consumer<Path> compileSourceRegistrar,
-                                  Consumer<Path> testSourceRegistrar) {
+            Path buildDir,
+            Consumer<Path> compileSourceRegistrar,
+            Consumer<Path> testSourceRegistrar) {
         instance = new PreBuildContext(appModelResolver, buildDir, compileSourceRegistrar, testSourceRegistrar);
     }
 }
