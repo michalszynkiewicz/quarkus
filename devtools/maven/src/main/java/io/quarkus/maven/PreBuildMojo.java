@@ -3,6 +3,8 @@ package io.quarkus.maven;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Properties;
@@ -94,10 +96,7 @@ public class PreBuildMojo extends AbstractMojo {
                     .setRemoteRepositories(repos)
                     .build();
 
-            final Artifact projectArtifact = project.getArtifact();
-            final AppArtifact appArtifact = new AppArtifact(projectArtifact.getGroupId(), projectArtifact.getArtifactId(),
-                    projectArtifact.getClassifier(), projectArtifact.getArtifactHandler().getExtension(),
-                    projectArtifact.getVersion());
+            final AppArtifact appArtifact = getAppArtifact();
 
             CuratedApplication curatedApplication = QuarkusBootstrap.builder()
                     .setAppArtifact(appArtifact)
@@ -122,5 +121,26 @@ public class PreBuildMojo extends AbstractMojo {
                 | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
             throw new RuntimeException("Failure! ", e); // mstodo handle it the proper maven way!
         }
+    }
+
+    private AppArtifact getAppArtifact() throws MojoExecutionException {
+        final Path classesDir = Paths.get(project.getBuild().getOutputDirectory());
+        if (!Files.exists(classesDir)) {
+            if (getLog().isDebugEnabled()) {
+                getLog().debug("Creating empty " + classesDir + " just to be able to resolve the project's artifact");
+            }
+            try {
+                Files.createDirectories(classesDir);
+            } catch (IOException e) {
+                throw new MojoExecutionException("Failed to create " + classesDir);
+            }
+        }
+
+        final Artifact projectArtifact = project.getArtifact();
+        final AppArtifact appArtifact = new AppArtifact(projectArtifact.getGroupId(), projectArtifact.getArtifactId(),
+                projectArtifact.getClassifier(), projectArtifact.getArtifactHandler().getExtension(),
+                projectArtifact.getVersion());
+        appArtifact.setPath(classesDir);
+        return appArtifact;
     }
 }

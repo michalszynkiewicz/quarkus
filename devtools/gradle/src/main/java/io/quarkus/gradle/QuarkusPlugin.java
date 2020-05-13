@@ -124,7 +124,7 @@ public class QuarkusPlugin implements Plugin<Project> {
                     compileJavaTask.dependsOn(quarkusPrepare);
                     quarkusPrepare.setSourceRegistrar(compileJavaTask::source);
                     JavaCompile compileTestJavaTask = (JavaCompile) tasks.getByName(JavaPlugin.COMPILE_TEST_JAVA_TASK_NAME);
-                    compileTestJavaTask.dependsOn(quarkusPrepare); // mstodo maybe two separate tasks?
+                    compileTestJavaTask.dependsOn(quarkusPrepare); // mstodo maybe two separate tasks,test and "normal"?
                     quarkusPrepare.setTestSourceRegistrar(compileTestJavaTask::source);
 
                     // mstodo get it from java plugin? Or
