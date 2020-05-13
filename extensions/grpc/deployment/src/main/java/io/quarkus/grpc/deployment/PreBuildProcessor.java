@@ -7,7 +7,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -36,8 +35,8 @@ public class PreBuildProcessor {
     // msTODO: the real thing adds some google stuff
     @PreBuildStep
     public void fire() throws IOException, InterruptedException, AppModelResolverException {
-        Path protoDir = Paths.get("src", "main", "proto");
-        Path protoTestDir = Paths.get("src", "test", "proto");
+        Path protoDir = PreBuildContext.get().sourcesDir.resolve("proto");
+        Path protoTestDir = PreBuildContext.get().testSourcesDir.resolve("proto");
         Path buildDir = PreBuildContext.get().buildDir;
         Path outDir = buildDir.resolve("generated-sources").resolve("protobuf");
         Path testOutDir = buildDir.resolve("generated-test-sources").resolve("protobuf");
@@ -152,8 +151,7 @@ public class PreBuildProcessor {
     private static Path prepareQuarkusGrpcExecutable(AppModelResolver resolver,
             Path buildDir)
             throws IOException, AppModelResolverException {
-        // mstodo get this version from somewhere
-        String quarkusGrpcVersion = "999-SNAPSHOT";
+        String quarkusGrpcVersion = PreBuildProcessor.class.getPackage().getImplementationVersion();
         AppArtifact quarkusGrpcPlugin = new AppArtifact("io.quarkus", "quarkus-grpc-protoc-plugin", quarkusGrpcVersion);
         AppModel qGrpcPluginModel = resolver.resolveModel(quarkusGrpcPlugin);
         String classpath = qGrpcPluginModel.getUserDependencies().stream()
