@@ -117,9 +117,8 @@ public class PreBuildMojo extends AbstractMojo {
                     new BootstrapAppModelResolver(resolver),
                     path -> project.addCompileSourceRoot(path.toString()),
                     path -> project.addTestCompileSourceRoot(path.toString()));
-        } catch (BootstrapException | AppModelResolverException | IOException | ClassNotFoundException | InstantiationException
-                | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
-            throw new RuntimeException("Failure! ", e); // mstodo handle it the proper maven way!
+        } catch (Exception any) {
+            throw new MojoFailureException("Prepare phase of the quarkus-maven-plugin failed: " + any.getMessage(), any);
         }
     }
 

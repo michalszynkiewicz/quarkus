@@ -38,6 +38,9 @@ public class QuarkusPrepare extends QuarkusTask {
 
         final AppArtifact appArtifact = extension().getAppArtifact();
         appArtifact.setPaths(QuarkusGradleUtils.getOutputPaths(getProject()));
+        File fakeAppArtifact = getTemporaryDirFactory().create();
+        appArtifact.setPath(fakeAppArtifact.toPath());
+
         final AppModelResolver modelResolver = extension().getAppModelResolver();
 
         final Properties realProperties = getBuildSystemProperties(appArtifact);
@@ -72,8 +75,6 @@ public class QuarkusPrepare extends QuarkusTask {
                     modelResolver,
                     sourceRegistrar,
                     testSourceRegistrar);
-            appCreationContext.createAugmentor().createProductionApplication();
-
         } catch (BootstrapException | IOException | ClassNotFoundException | IllegalAccessException | InstantiationException
                 | NoSuchMethodException | InvocationTargetException e) {
             throw new GradleException("Failed to generate sources in the QuarkusPrepare task", e);
