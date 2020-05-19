@@ -1,5 +1,6 @@
 package io.quarkus.gradle;
 
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -20,6 +21,7 @@ import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskContainer;
+import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.util.GradleVersion;
 
@@ -28,6 +30,7 @@ import io.quarkus.gradle.tasks.QuarkusBuild;
 import io.quarkus.gradle.tasks.QuarkusDev;
 import io.quarkus.gradle.tasks.QuarkusGenerateConfig;
 import io.quarkus.gradle.tasks.QuarkusListExtensions;
+import io.quarkus.gradle.tasks.QuarkusPrepare;
 import io.quarkus.gradle.tasks.QuarkusRemoteDev;
 import io.quarkus.gradle.tasks.QuarkusRemoveExtension;
 import io.quarkus.gradle.tasks.QuarkusTestConfig;
@@ -42,6 +45,7 @@ public class QuarkusPlugin implements Plugin<Project> {
     public static final String LIST_EXTENSIONS_TASK_NAME = "listExtensions";
     public static final String ADD_EXTENSION_TASK_NAME = "addExtension";
     public static final String REMOVE_EXTENSION_TASK_NAME = "removeExtension";
+    public static final String QUARKUS_PREPARE_TASK_NAME = "quarkusPrepare";
     public static final String QUARKUS_BUILD_TASK_NAME = "quarkusBuild";
     public static final String GENERATE_CONFIG_TASK_NAME = "generateConfig";
     public static final String QUARKUS_DEV_TASK_NAME = "quarkusDev";
@@ -62,11 +66,9 @@ public class QuarkusPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         verifyGradleVersion();
-
         // register extension
         final QuarkusPluginExtension quarkusExt = project.getExtensions().create(EXTENSION_NAME, QuarkusPluginExtension.class,
                 project);
-
         registerTasks(project, quarkusExt);
     }
 
@@ -78,7 +80,10 @@ public class QuarkusPlugin implements Plugin<Project> {
         tasks.create(REMOVE_EXTENSION_TASK_NAME, QuarkusRemoveExtension.class);
         tasks.create(GENERATE_CONFIG_TASK_NAME, QuarkusGenerateConfig.class);
 
+        QuarkusPrepare quarkusPrepare = tasks.create(QUARKUS_PREPARE_TASK_NAME, QuarkusPrepare.class);
+
         Task quarkusBuild = tasks.create(QUARKUS_BUILD_TASK_NAME, QuarkusBuild.class);
+        quarkusBuild.dependsOn(quarkusPrepare);
         Task quarkusDev = tasks.create(QUARKUS_DEV_TASK_NAME, QuarkusDev.class);
         Task quarkusRemoteDev = tasks.create(QUARKUS_REMOTE_DEV_TASK_NAME, QuarkusRemoteDev.class);
         tasks.create(QUARKUS_TEST_CONFIG_TASK_NAME, QuarkusTestConfig.class);
@@ -112,6 +117,17 @@ public class QuarkusPlugin implements Plugin<Project> {
                 JavaPlugin.class,
                 javaPlugin -> {
                     project.afterEvaluate(this::afterEvaluate);
+                    JavaCompile compileJavaTask = (JavaCompile) tasks.getByName(JavaPlugin.COMPILE_JAVA_TASK_NAME);
+                    compileJavaTask.mustRunAfter(quarkusPrepare);
+                    quarkusPrepare.setSourceRegistrar(compileJavaTask::source);
+                    JavaCompile compileTestJavaTask = (JavaCompile) tasks.getByName(JavaPlugin.COMPILE_TEST_JAVA_TASK_NAME);
+                    compileTestJavaTask.mustRunAfter(quarkusPrepare);
+                    quarkusPrepare.setTestSourceRegistrar(compileTestJavaTask::source);
+
+                    Path projectPath = project.getProjectDir().toPath();
+                    // mstodo source set?
+                    quarkusPrepare.setSourcesDirectory(projectPath.resolve("src").resolve("main"));
+                    quarkusPrepare.setTestSourcesDirectory(projectPath.resolve("src").resolve("test"));
 
                     Task classesTask = tasks.getByName(JavaPlugin.CLASSES_TASK_NAME);
                     quarkusDev.dependsOn(classesTask);
@@ -197,8 +213,12 @@ public class QuarkusPlugin implements Plugin<Project> {
         final Task jarTask = dep.getTasks().findByName(JavaPlugin.JAR_TASK_NAME);
         if (jarTask != null) {
             final Task quarkusBuild = project.getTasks().findByName(QUARKUS_BUILD_TASK_NAME);
+            final Task quarkusPrepare = project.getTasks().findByName(QUARKUS_PREPARE_TASK_NAME);
             if (quarkusBuild != null) {
                 quarkusBuild.dependsOn(jarTask);
+            }
+            if (quarkusPrepare != null) {
+                quarkusPrepare.dependsOn(jarTask);
             }
         }
 

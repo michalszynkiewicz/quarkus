@@ -98,6 +98,9 @@ public class AppModelGradleResolver implements AppModelResolver {
             dep.setExtension(appArtifact.getType());
             dep.setType(appArtifact.getType());
             dep.setName(appArtifact.getArtifactId());
+            if (appArtifact.getClassifier() != null) {
+                dep.setClassifier(appArtifact.getClassifier());
+            }
 
             final DefaultExternalModuleDependency gradleDep = new DefaultExternalModuleDependency(appArtifact.getGroupId(),
                     appArtifact.getArtifactId(), appArtifact.getVersion(), null);
@@ -110,6 +113,8 @@ public class AppModelGradleResolver implements AppModelResolver {
             for (ResolvedArtifact a : resolvedArtifacts) {
                 if (appArtifact.getArtifactId().equals(a.getName())
                         && appArtifact.getType().equals(a.getType())
+                        && (a.getClassifier() == null ? appArtifact.getClassifier() == null
+                                : a.getClassifier().equals(appArtifact.getClassifier()))
                         && appArtifact.getGroupId().equals(a.getModuleVersion().getId().getGroup())) {
                     appArtifact.setPath(a.getFile().toPath());
                 }

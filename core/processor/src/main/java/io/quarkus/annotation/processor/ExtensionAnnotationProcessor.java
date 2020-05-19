@@ -20,6 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -128,6 +129,9 @@ public class ExtensionAnnotationProcessor extends AbstractProcessor {
                 case Constants.ANNOTATION_TEMPLATE:
                     processRecorder(roundEnv, annotation);
                     break;
+                case Constants.ANNOTATION_PRE_BUILD_STEP:
+                    processPreBuildStep(roundEnv, annotation);
+                    break;
             }
         }
     }
@@ -150,7 +154,10 @@ public class ExtensionAnnotationProcessor extends AbstractProcessor {
             processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, "Resource path URI is invalid: " + uri);
             return;
         }
+        // build processors
         Collection<String> bscListClasses = new TreeSet<>();
+        // pre-build processors
+        Collection<String> pbscListClasses = new TreeSet<>();
         Collection<String> crListClasses = new TreeSet<>();
         Properties javaDocProperties = new Properties();
 
@@ -178,6 +185,8 @@ public class ExtensionAnnotationProcessor extends AbstractProcessor {
                         for (String name : names) {
                             javaDocProperties.setProperty(name, p.getProperty(name));
                         }
+                    } else if (nameStr.endsWith(".pbsc")) {
+                        readFile(file, pbscListClasses);
                     }
 
                     return FileVisitResult.CONTINUE;
@@ -196,6 +205,18 @@ public class ExtensionAnnotationProcessor extends AbstractProcessor {
         } catch (IOException e) {
             processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, "File walk failed: " + e);
         }
+
+        List<String> preBuildAndBuildClasses = new ArrayList<>(pbscListClasses);
+        preBuildAndBuildClasses.retainAll(bscListClasses);
+        if (!preBuildAndBuildClasses.isEmpty()) {
+            processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                    "The following classes are both used as build processors and " +
+                            "pre-build processors, i.e. contain both methods" +
+                            " annotated with @BuildStep and @PreBuildStep: " + preBuildAndBuildClasses +
+                            ". Please move @PreBuildStep methods to a separate class");
+            return;
+        }
+
         if (!bscListClasses.isEmpty())
             try {
                 final FileObject listResource = filer.createResource(StandardLocation.CLASS_OUTPUT, "",
@@ -205,6 +226,17 @@ public class ExtensionAnnotationProcessor extends AbstractProcessor {
                 processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, "Failed to write build steps listing: " + e);
                 return;
             }
+
+        if (!pbscListClasses.isEmpty())
+            try {
+                final FileObject listResource = filer.createResource(StandardLocation.CLASS_OUTPUT, "",
+                        "META-INF/quarkus-pre-build-steps.list");
+                writeListResourceFile(pbscListClasses, listResource);
+            } catch (IOException e) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, "Failed to write build steps listing: " + e);
+                return;
+            }
+
         if (!crListClasses.isEmpty()) {
             try {
                 final FileObject listResource = filer.createResource(StandardLocation.CLASS_OUTPUT, "",
@@ -281,7 +313,18 @@ public class ExtensionAnnotationProcessor extends AbstractProcessor {
         }
     }
 
+    private void processPreBuildStep(RoundEnvironment roundEnv, TypeElement annotation) {
+        processBuildStep(roundEnv, annotation, false, ".pbsc");
+    }
+
     private void processBuildStep(RoundEnvironment roundEnv, TypeElement annotation) {
+        processBuildStep(roundEnv, annotation, true, ".bsc");
+    }
+
+    private void processBuildStep(RoundEnvironment roundEnv,
+            TypeElement annotation,
+            boolean withConfigJavadocAndAccessor,
+            String suffix) {
         final Set<String> processorClassNames = new HashSet<>();
 
         for (ExecutableElement i : methodsIn(roundEnv.getElementsAnnotatedWith(annotation))) {
@@ -299,14 +342,16 @@ public class ExtensionAnnotationProcessor extends AbstractProcessor {
 
             final String binaryName = processingEnv.getElementUtils().getBinaryName(clazz).toString();
             if (processorClassNames.add(binaryName)) {
-                recordConfigJavadoc(clazz);
-                generateAccessor(clazz);
+                if (withConfigJavadocAndAccessor) {
+                    recordConfigJavadoc(clazz);
+                    generateAccessor(clazz);
+                }
                 final StringBuilder rbn = getRelativeBinaryName(clazz, new StringBuilder());
                 try {
                     final FileObject itemResource = processingEnv.getFiler().createResource(
                             StandardLocation.SOURCE_OUTPUT,
                             pkg.getQualifiedName().toString(),
-                            rbn.toString() + ".bsc",
+                            rbn.toString() + suffix,
                             clazz);
                     writeResourceFile(binaryName, itemResource);
                 } catch (IOException e1) {

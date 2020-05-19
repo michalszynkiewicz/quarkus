@@ -102,6 +102,7 @@
                 <executions>
                     <execution>
                         <goals>
+                            <goal>prepare</goal>
                             <goal>build</goal>
                         </goals>
                     </execution>
