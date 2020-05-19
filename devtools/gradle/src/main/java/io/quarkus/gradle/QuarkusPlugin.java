@@ -63,15 +63,35 @@ public class QuarkusPlugin implements Plugin<Project> {
     public static final String NATIVE_TEST_IMPLEMENTATION_CONFIGURATION_NAME = "nativeTestImplementation";
     public static final String NATIVE_TEST_RUNTIME_ONLY_CONFIGURATION_NAME = "nativeTestRuntimeOnly";
 
+    private boolean wasApplied = false;
+
     @Override
     public void apply(Project project) {
         verifyGradleVersion();
-
+        project.getLogger().info("applying quarkus plugin");
         // register extension
         final QuarkusPluginExtension quarkusExt = project.getExtensions().create(EXTENSION_NAME, QuarkusPluginExtension.class,
                 project);
 
+        //        List<String> prerequisitePlugins = Arrays.asList("java", "java-library"); // mstodo make a constant
+        //        for (String prerequisitePlugin : prerequisitePlugins) {
+        //            project.getPluginManager().withPlugin(prerequisitePlugin, plugin -> {
+        //                if (wasApplied) {
+        //                    project.getLogger().info("Quarkus plugin already applied and will not be applied again after " +
+        //                            prerequisitePlugin + " on " + project.getPath());
+        //                } else {
+        //                    wasApplied = true;
         registerTasks(project, quarkusExt);
+        //                }
+        //            });
+        //        }
+        //
+        //        project.afterEvaluate(ignored -> {
+        //            if (!wasApplied) {
+        //                throw new GradleException("The quarkus plugin was not applied, is any of the " + prerequisitePlugins +
+        //                        " defined in the project?");
+        //            }
+        //        });
     }
 
     @SuppressWarnings("Convert2Lambda")
@@ -85,6 +105,7 @@ public class QuarkusPlugin implements Plugin<Project> {
         QuarkusPrepare quarkusPrepare = tasks.create(QUARKUS_PREPARE_TASK_NAME, QuarkusPrepare.class);
 
         Task quarkusBuild = tasks.create(QUARKUS_BUILD_TASK_NAME, QuarkusBuild.class);
+        quarkusBuild.dependsOn(quarkusPrepare);
         Task quarkusDev = tasks.create(QUARKUS_DEV_TASK_NAME, QuarkusDev.class);
         Task quarkusRemoteDev = tasks.create(QUARKUS_REMOTE_DEV_TASK_NAME, QuarkusRemoteDev.class);
         tasks.create(QUARKUS_TEST_CONFIG_TASK_NAME, QuarkusTestConfig.class);
@@ -118,19 +139,20 @@ public class QuarkusPlugin implements Plugin<Project> {
                 JavaPlugin.class,
                 javaPlugin -> {
                     project.afterEvaluate(this::afterEvaluate);
-
                     // mstodo: test
                     JavaCompile compileJavaTask = (JavaCompile) tasks.getByName(JavaPlugin.COMPILE_JAVA_TASK_NAME);
-                    compileJavaTask.dependsOn(quarkusPrepare);
+                    compileJavaTask.mustRunAfter(quarkusPrepare);
+                    //                    compileJavaTask.dependsOn(quarkusPrepare);
                     quarkusPrepare.setSourceRegistrar(compileJavaTask::source);
                     JavaCompile compileTestJavaTask = (JavaCompile) tasks.getByName(JavaPlugin.COMPILE_TEST_JAVA_TASK_NAME);
-                    compileTestJavaTask.dependsOn(quarkusPrepare); // mstodo maybe two separate tasks,test and "normal"?
+                    //                    compileTestJavaTask.dependsOn(quarkusPrepare); // mstodo maybe two separate tasks,test and "normal"?
+                    compileTestJavaTask.mustRunAfter(quarkusPrepare);
                     quarkusPrepare.setTestSourceRegistrar(compileTestJavaTask::source);
 
                     // mstodo get it from java plugin? Or
                     Path projectPath = project.getProjectDir().toPath();
-                    quarkusPrepare.setSourcesDirectory(projectPath.resolve("src").resolve("main").resolve("proto"));
-                    quarkusPrepare.setTestSourcesDirectory(projectPath.resolve("src").resolve("test").resolve("proto"));
+                    quarkusPrepare.setSourcesDirectory(projectPath.resolve("src").resolve("main"));
+                    quarkusPrepare.setTestSourcesDirectory(projectPath.resolve("src").resolve("test"));
 
                     Task classesTask = tasks.getByName(JavaPlugin.CLASSES_TASK_NAME);
                     quarkusDev.dependsOn(classesTask);
@@ -216,8 +238,12 @@ public class QuarkusPlugin implements Plugin<Project> {
         final Task jarTask = dep.getTasks().findByName(JavaPlugin.JAR_TASK_NAME);
         if (jarTask != null) {
             final Task quarkusBuild = project.getTasks().findByName(QUARKUS_BUILD_TASK_NAME);
+            final Task quarkusPrepare = project.getTasks().findByName(QUARKUS_PREPARE_TASK_NAME);
             if (quarkusBuild != null) {
                 quarkusBuild.dependsOn(jarTask);
+            }
+            if (quarkusPrepare != null) {
+                quarkusPrepare.dependsOn(jarTask);
             }
         }
 

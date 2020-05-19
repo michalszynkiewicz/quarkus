@@ -45,7 +45,7 @@ public class QuarkusPrepare extends QuarkusTask {
 
         final Properties realProperties = getBuildSystemProperties(appArtifact);
 
-        boolean clear = false;
+        boolean clear = false; // mstodo whaat?
         try (CuratedApplication appCreationContext = QuarkusBootstrap.builder() // mstodo share it with build task ?
                 .setBaseClassLoader(getClass().getClassLoader())
                 .setAppModelResolver(modelResolver)
@@ -68,6 +68,8 @@ public class QuarkusPrepare extends QuarkusTask {
                 });
                 appArtifact.setPaths(paths.build());
             }
+            getLogger().info("Will trigger preparing sources for source directory: {} buildDir: {}",
+                    sourcesDirectory.toAbsolutePath(), getProject().getBuildDir().getAbsolutePath());
             PreBuilder.prepareSources(appCreationContext.createDeploymentClassLoader(),
                     getProject().getBuildDir().toPath(),
                     sourcesDirectory,

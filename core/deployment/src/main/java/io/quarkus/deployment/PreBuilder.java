@@ -1,6 +1,7 @@
 package io.quarkus.deployment;
 
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -23,6 +24,9 @@ public class PreBuilder {
             Consumer<Path> testSourceRegistrar) throws IOException, ClassNotFoundException, IllegalAccessException,
             InstantiationException, NoSuchMethodException, InvocationTargetException {
         Thread.currentThread().setContextClassLoader(deploymentClassLoader);
+        @SuppressWarnings("unchecked")
+        Class<? extends Annotation> preBuildStepClass = (Class<? extends Annotation>) deploymentClassLoader
+                .loadClass(PreBuildStep.class.getName());
         // mstodo do not allow to have build steps and pre-build steps in the same class?
 
         // gather pre-build steps
@@ -57,7 +61,7 @@ public class PreBuilder {
                 if (Modifier.isStatic(mods)) {
                     continue;
                 }
-                if (!method.isAnnotationPresent(PreBuildStep.class))
+                if (!method.isAnnotationPresent(preBuildStepClass)) // mstodo try getting the PreBuildStep class from the deployment classloader
                     continue;
                 if (!Modifier.isPublic(mods) || !Modifier.isPublic(method.getDeclaringClass().getModifiers())) {
                     method.setAccessible(true);
