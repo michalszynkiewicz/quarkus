@@ -3,18 +3,12 @@ package io.quarkus.grpc.deployment;
 import static java.util.Arrays.asList;
 
 import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.jar.Attributes;
-import java.util.jar.JarInputStream;
-import java.util.jar.Manifest;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import io.quarkus.bootstrap.PreBuildContext;
@@ -25,12 +19,9 @@ import io.quarkus.deployment.annotations.PreBuildStep;
 import io.quarkus.utilities.JavaBinFinder;
 import io.quarkus.utilities.OS;
 
-// mstodo test windows
 // mstodo customize via properties
 // mstodo customizable proto path
-public class PreBuildProcessor { // mstodo GrpcPreProcessor
-    private static final String CLASS_PATH_DELIMITER = "" + File.pathSeparatorChar;
-
+public class GrpcPreProcessor { // mstodo GrpcPreProcessor
     private static final String quarkusProtocPluginMain = "io.quarkus.grpc.protoc.plugin.MutinyGrpcGenerator";
 
     private Executables executables;
@@ -82,12 +73,10 @@ public class PreBuildProcessor { // mstodo GrpcPreProcessor
                 command.addAll(protoFiles);
 
                 // mstodo rollback output redirection?
-                ProcessBuilder builder = new ProcessBuilder()
-                        .command(command);
-                builder
-                        .redirectErrorStream(true)
-                        .redirectOutput(File.createTempFile("from-graddily-doo", ".txt"));
-                Process process = builder.start();
+                Process process = new ProcessBuilder()
+                        .command(command)
+                        .inheritIO()
+                        .start();
                 int resultCode = process.waitFor();
                 if (resultCode != 0) {
                     throw new RuntimeException("Failed to generate Java classes from proto file: " + protoFiles);
@@ -160,27 +149,10 @@ public class PreBuildProcessor { // mstodo GrpcPreProcessor
 
     private static Path prepareQuarkusGrpcExecutable(AppModelResolver resolver,
             Path buildDir)
-            throws IOException, AppModelResolverException {
-        List<Path> qGrpcPluginClasspath = new ArrayList<>();
-
-        String quarkusGrpcVersion = PreBuildProcessor.class.getPackage().getImplementationVersion();
+            throws IOException {
+        String quarkusGrpcVersion = GrpcPreProcessor.class.getPackage().getImplementationVersion();
         AppArtifact quarkusGrpcPlugin = new AppArtifact("io.quarkus", "quarkus-grpc-protoc-plugin", quarkusGrpcVersion);
-        Path pluginPath = resolver.resolve(quarkusGrpcPlugin);
-        qGrpcPluginClasspath.add(pluginPath);
-        List<AppArtifact> classpathArtifacts = readClasspath(pluginPath);
-        for (AppArtifact classpathArtifact : classpathArtifacts) {
-            Path dependencypath = resolver.resolve(classpathArtifact);
-            qGrpcPluginClasspath.add(dependencypath);
-        }
-
-        String classpath = qGrpcPluginClasspath.stream()
-                .map(Path::toAbsolutePath)
-                .map(Path::toString)
-                .collect(Collectors.joining(CLASS_PATH_DELIMITER));
-        if (!classpath.isEmpty()) {
-            classpath += CLASS_PATH_DELIMITER;
-        }
-        classpath += getArtifact(resolver, quarkusGrpcPlugin).toAbsolutePath().toString();
+        Path pluginPath = getArtifact(resolver, quarkusGrpcPlugin);
 
         Path script;
         BufferedWriter writer = null;
@@ -197,7 +169,7 @@ public class PreBuildProcessor { // mstodo GrpcPreProcessor
                 writer = Files.newBufferedWriter(script);
             }
             writer.write(JavaBinFinder.findBin() + " -cp " +
-                    classpath + " " + quarkusProtocPluginMain);
+                    pluginPath.toAbsolutePath().toString() + " " + quarkusProtocPluginMain);
             writer.newLine();
         } finally {
             if (writer != null) {
@@ -210,33 +182,6 @@ public class PreBuildProcessor { // mstodo GrpcPreProcessor
             // mstodo log instead
         }
         return script;
-    }
-
-    private static List<AppArtifact> readClasspath(Path pluginPath) {
-        List<AppArtifact> result = new ArrayList<>();
-        try (FileInputStream stream = new FileInputStream(pluginPath.toFile());
-                JarInputStream jarStream = new JarInputStream(stream)) {
-            Manifest manifest = jarStream.getManifest();
-            String classPath = (String) manifest.getMainAttributes().get(new Attributes.Name("Class-Path"));
-            String[] artifacts = classPath.split(Pattern.quote(" ")); // mstodo check multiple artifacts on the classpath
-            for (String artifact : artifacts) {
-                String[] gav_cp = artifact.split(":");
-                if (gav_cp.length < 4 || gav_cp.length > 5) {
-                    throw new RuntimeException(
-                            "Invalid artifact specifier:  " + artifact + " in the classpath of the qarkus grpc plugin");
-                }
-                String groupId = gav_cp[0];
-                String artifactId = gav_cp[1];
-                String version = gav_cp[2];
-                String classifier = gav_cp.length == 4 ? null : gav_cp[3];
-                String packaging = gav_cp.length == 4 ? gav_cp[3] : gav_cp[4];
-
-                result.add(new AppArtifact(groupId, artifactId, classifier, packaging, version));
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("Failure constructing classpath"); // mstodo
-        }
-        return result;
     }
 
     private static Path getArtifact(AppModelResolver resolver, AppArtifact a) {
