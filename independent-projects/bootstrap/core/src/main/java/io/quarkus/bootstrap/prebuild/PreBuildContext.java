@@ -14,22 +14,20 @@ public class PreBuildContext {
     public final AppModelResolver appModelResolver;
 
     public final Path sourcesDir;
-    public final Path testSourcesDir;
     public final Path buildDir;
+    public final boolean test;
 
     public final Consumer<Path> compileSourceRegistrar;
-    public final Consumer<Path> testSourceRegistrar;
 
     private PreBuildContext(AppModelResolver appModelResolver,
-            Path sourcesDir, Path testSourcesDir, Path buildDir,
+            Path sourcesDir, Path buildDir,
             Consumer<Path> compileSourceRegistrar,
-            Consumer<Path> testSourceRegistrar) {
+            boolean test) {
         this.appModelResolver = appModelResolver;
         this.sourcesDir = sourcesDir;
-        this.testSourcesDir = testSourcesDir;
         this.buildDir = buildDir;
         this.compileSourceRegistrar = compileSourceRegistrar;
-        this.testSourceRegistrar = testSourceRegistrar;
+        this.test = test;
     }
 
     public static PreBuildContext get() {
@@ -42,10 +40,12 @@ public class PreBuildContext {
     public static void initialize(AppModelResolver appModelResolver,
             Path buildDir,
             Path sourcesDir,
-            Path testSourcesDir,
             Consumer<Path> compileSourceRegistrar,
-            Consumer<Path> testSourceRegistrar) {
-        instance = new PreBuildContext(appModelResolver, sourcesDir, testSourcesDir, buildDir, compileSourceRegistrar,
-                testSourceRegistrar);
+            boolean isTest) {
+        instance = new PreBuildContext(appModelResolver, sourcesDir, buildDir, compileSourceRegistrar, isTest);
+    }
+
+    public boolean isTest() {
+        return test;
     }
 }

@@ -30,15 +30,16 @@ public class GrpcPreProcessor {
     // msTODO: the original thing adds some google stuff ???
     @PreBuildStep
     public void fire() {
-        Path protoDir = PreBuildContext.get().sourcesDir.resolve("proto");
-        Path protoTestDir = PreBuildContext.get().testSourcesDir.resolve("proto");
-        Path buildDir = PreBuildContext.get().buildDir;
-        Path outDir = buildDir.resolve("generated-sources").resolve("protobuf");
-        Path testOutDir = buildDir.resolve("generated-test-sources").resolve("protobuf");
+        PreBuildContext ctx = PreBuildContext.get();
+        Path protoDir = ctx.sourcesDir.resolve("proto");
+        Path buildDir = ctx.buildDir;
 
-        generateProtoClasses(protoDir, PreBuildContext.get().compileSourceRegistrar, buildDir, outDir);
+        Path outDir = buildDir
+                .resolve(ctx.isTest() ? "generate-test-sources" : "generated-sources")
+                .resolve("protobuf");
+        // mstodo test out dir - should it be different than normal?
 
-        generateProtoClasses(protoTestDir, PreBuildContext.get().testSourceRegistrar, buildDir, testOutDir);
+        generateProtoClasses(protoDir, ctx.compileSourceRegistrar, buildDir, outDir);
     }
 
     private void generateProtoClasses(Path protoDir,

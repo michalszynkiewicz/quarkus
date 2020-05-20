@@ -19,10 +19,9 @@ public class PreBuilder {
     public static void prepareSources(ClassLoader deploymentClassLoader,
             Path buildDir,
             Path sourcesDir,
-            Path testSourcesDir,
             AppModelResolver appModelResolver,
             Consumer<Path> compileSourceRegistrar,
-            Consumer<Path> testSourceRegistrar) {
+            boolean isTest) {
         Thread.currentThread().setContextClassLoader(deploymentClassLoader);
         Class<? extends Annotation> preBuildStepClass = getPreBuildStepClass(deploymentClassLoader);
 
@@ -33,9 +32,7 @@ public class PreBuilder {
             return;
         }
 
-        PreBuildContext.initialize(appModelResolver, buildDir,
-                sourcesDir, testSourcesDir,
-                compileSourceRegistrar, testSourceRegistrar);
+        PreBuildContext.initialize(appModelResolver, buildDir, sourcesDir, compileSourceRegistrar, isTest);
 
         for (Class<?> clazz : classes) {
             triggerPreBuildSteps(preBuildStepClass, clazz);

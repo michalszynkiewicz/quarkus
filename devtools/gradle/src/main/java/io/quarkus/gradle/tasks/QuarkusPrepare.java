@@ -5,7 +5,6 @@ import java.nio.file.Path;
 import java.util.Properties;
 import java.util.function.Consumer;
 
-import io.quarkus.bootstrap.prebuild.PreBuildException;
 import org.gradle.api.GradleException;
 import org.gradle.api.plugins.Convention;
 import org.gradle.api.plugins.JavaPluginConvention;
@@ -17,15 +16,15 @@ import io.quarkus.bootstrap.app.CuratedApplication;
 import io.quarkus.bootstrap.app.QuarkusBootstrap;
 import io.quarkus.bootstrap.model.AppArtifact;
 import io.quarkus.bootstrap.model.PathsCollection;
+import io.quarkus.bootstrap.prebuild.PreBuildException;
 import io.quarkus.bootstrap.resolver.AppModelResolver;
 import io.quarkus.deployment.PreBuilder;
 
 public class QuarkusPrepare extends QuarkusTask {
 
     private Path sourcesDirectory;
-    private Path testSourcesDirectory;
-    private Consumer<Path> testSourceRegistrar;
     private Consumer<Path> sourceRegistrar;
+    private boolean test = false;
 
     public QuarkusPrepare() {
         super("Quarkus performs pre-build preparations, such as sources generation");
@@ -71,10 +70,9 @@ public class QuarkusPrepare extends QuarkusTask {
             PreBuilder.prepareSources(appCreationContext.createDeploymentClassLoader(),
                     getProject().getBuildDir().toPath(),
                     sourcesDirectory,
-                    testSourcesDirectory,
                     modelResolver,
                     sourceRegistrar,
-                    testSourceRegistrar);
+                    test);
         } catch (BootstrapException e) {
             throw new GradleException("Failed to generate sources in the QuarkusPrepare task", e);
         } catch (PreBuildException e) {
@@ -86,15 +84,11 @@ public class QuarkusPrepare extends QuarkusTask {
         this.sourcesDirectory = sourcesDirectory;
     }
 
-    public void setTestSourcesDirectory(Path testSourcesDirectory) {
-        this.testSourcesDirectory = testSourcesDirectory;
-    }
-
-    public void setTestSourceRegistrar(Consumer<Path> testSourceRegistrar) {
-        this.testSourceRegistrar = testSourceRegistrar;
-    }
-
     public void setSourceRegistrar(Consumer<Path> sourceRegistrar) {
         this.sourceRegistrar = sourceRegistrar;
+    }
+
+    public void setTest(boolean test) {
+        this.test = test;
     }
 }

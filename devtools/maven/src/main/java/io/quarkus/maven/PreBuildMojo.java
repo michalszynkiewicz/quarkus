@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Properties;
+import java.util.function.Consumer;
 
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.AbstractMojo;
@@ -54,7 +55,14 @@ public class PreBuildMojo extends AbstractMojo {
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
+        String projectDir = project.getBasedir().getAbsolutePath();
+        Path sourcesDir = Paths.get(projectDir, "src", "main"); // mstodo we can probably do better
+        doExecute(sourcesDir, path -> project.addCompileSourceRoot(path.toString()), false);
+    }
 
+    void doExecute(Path sourcesDir,
+            Consumer<Path> sourceRegistrar,
+            boolean test) throws MojoFailureException, MojoExecutionException {
         if (project.getPackaging().equals("pom")) {
             getLog().info("Type of the artifact is POM, skipping build goal");
             return;
@@ -92,16 +100,13 @@ public class PreBuildMojo extends AbstractMojo {
                     .setTargetDirectory(buildDir.toPath())
                     .build().bootstrap();
 
-            String projectDir = project.getBasedir().getAbsolutePath();
-
             PreBuilder.prepareSources(
                     curatedApplication.createDeploymentClassLoader(),
                     buildDir.toPath(),
-                    Paths.get(projectDir, "src", "main"), Paths.get(projectDir, "src", "test"), // mstodo we can probably do better
-                    // mstodo separate run for tests and sources?
+                    sourcesDir,
                     new BootstrapAppModelResolver(resolver),
-                    path -> project.addCompileSourceRoot(path.toString()),
-                    path -> project.addTestCompileSourceRoot(path.toString()));
+                    sourceRegistrar,
+                    test);
         } catch (PreBuildFailureException any) {
             throw new MojoFailureException("Prepare phase of the quarkus-maven-plugin failed: " + any.getMessage(), any);
         } catch (Exception any) {
