@@ -288,6 +288,10 @@ public class LocalProject {
         return dir.resolve("target");
     }
 
+    public Path getCodeGenOutputDir() {
+        return dir.resolve("target").resolve("generated-sources");
+    }
+
     public Path getClassesDir() {
         final String classesDir = rawModel.getBuild() == null ? null : rawModel.getBuild().getOutputDirectory();
         return resolveRelativeToBaseDir(classesDir, "target/classes");
@@ -301,6 +305,11 @@ public class LocalProject {
     public Path getSourcesSourcesDir() {
         final String srcDir = rawModel.getBuild() == null ? null : rawModel.getBuild().getSourceDirectory();
         return resolveRelativeToBaseDir(srcDir, "src/main/java");
+    }
+
+    public Path getSourcesDir() {
+        final String srcDir = rawModel.getBuild() == null ? null : rawModel.getBuild().getSourceDirectory();
+        return resolveRelativeToBaseDir(srcDir, "src/main/");
     }
 
     public Path getResourcesSourcesDir() {
