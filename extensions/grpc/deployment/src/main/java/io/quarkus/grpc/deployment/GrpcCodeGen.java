@@ -172,7 +172,7 @@ public class GrpcCodeGen implements CodeGenProvider {
         if (OS.determineOS() != OS.WINDOWS) {
             return writeScript(buildDir, pluginPath, "#!/bin/sh\n", ".sh");
         } else {
-            return writeScript(buildDir, pluginPath, "", ".cmd");
+            return writeScript(buildDir, pluginPath, "@echo off\r\n", ".cmd");
         }
     }
 
