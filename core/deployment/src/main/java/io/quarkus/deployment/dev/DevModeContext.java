@@ -3,6 +3,7 @@ package io.quarkus.deployment.dev;
 import java.io.File;
 import java.io.Serializable;
 import java.net.URL;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -288,7 +289,7 @@ public class DevModeContext implements Serializable {
 
         public void addSourcePaths(Collection<String> additionalPaths) {
             additionalPaths.stream()
-                    .map(p -> p.startsWith("/") ? p : (projectDirectory + File.separator + p))
+                    .map(p -> Paths.get(p).isAbsolute() ? p : (projectDirectory + File.separator + p))
                     .forEach(sourcePaths::add);
         }
 

@@ -30,7 +30,7 @@ public class QuarkusPrepare extends QuarkusTask {
     public static final String INIT_AND_RUN = "initAndRun";
     private Path sourcesDirectory;
     private Consumer<Path> sourceRegistrar;
-    private boolean test = false; // mstodo test task!!!
+    private boolean test = false;
 
     public QuarkusPrepare() {
         super("Quarkus performs pre-build preparations, such as sources generation");
