@@ -394,7 +394,7 @@ jobs:
     name: Native Tests - ${{matrix.category}}
     needs: build-jdk11
     runs-on: ubuntu-latest
-    # Ignore the following YAML Schema error 
+    # Ignore the following YAML Schema error
     timeout-minutes: ${{matrix.timeout}}
     strategy:
       max-parallel: 8

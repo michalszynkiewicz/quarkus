@@ -175,6 +175,7 @@ public class AppModelGradleResolver implements AppModelResolver {
 
         final List<AppDependency> deploymentDeps = new ArrayList<>();
         final List<AppDependency> fullDeploymentDeps = new ArrayList<>(userDeps);
+
         if (!directExtensionDeps.isEmpty()) {
             final Configuration deploymentConfig = project.getConfigurations()
                     .detachedConfiguration(directExtensionDeps.toArray(new Dependency[0]));
