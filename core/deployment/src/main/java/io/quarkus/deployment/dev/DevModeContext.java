@@ -233,7 +233,7 @@ public class DevModeContext implements Serializable {
         private final String resourcePath;
         private final String resourcesOutputPath;
         private final String preBuildOutputDir;
-        private final String sourceParent;
+        private final Set<String> sourceParents;
         private final String targetDir;
 
         public ModuleInfo(AppArtifactKey appArtifactKey,
@@ -245,7 +245,8 @@ public class DevModeContext implements Serializable {
                 String sourceParent,
                 String preBuildOutputDir,
                 String targetDir) {
-            this(appArtifactKey, name, projectDirectory, sourcePaths, classesPath, resourcePath, classesPath, sourceParent,
+            this(appArtifactKey, name, projectDirectory, sourcePaths, classesPath, resourcePath, classesPath,
+                    Collections.singleton(sourceParent),
                     preBuildOutputDir, targetDir);
         }
 
@@ -256,7 +257,7 @@ public class DevModeContext implements Serializable {
                 String classesPath,
                 String resourcePath,
                 String resourceOutputPath,
-                String sourceParent,
+                Set<String> sourceParents,
                 String preBuildOutputDir,
                 String targetDir) {
             this.appArtifactKey = appArtifactKey;
@@ -266,7 +267,7 @@ public class DevModeContext implements Serializable {
             this.classesPath = classesPath;
             this.resourcePath = resourcePath;
             this.resourcesOutputPath = resourceOutputPath;
-            this.sourceParent = sourceParent;
+            this.sourceParents = sourceParents;
             this.preBuildOutputDir = preBuildOutputDir;
             this.targetDir = targetDir;
         }
@@ -283,8 +284,8 @@ public class DevModeContext implements Serializable {
             return Collections.unmodifiableSet(sourcePaths);
         }
 
-        public String getSourceParent() {
-            return sourceParent;
+        public Set<String> getSourceParents() {
+            return sourceParents;
         }
 
         public void addSourcePaths(Collection<String> additionalPaths) {

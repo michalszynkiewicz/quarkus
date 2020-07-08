@@ -338,11 +338,11 @@ public class IsolatedDevModeMain implements BiConsumer<CuratedApplication, Map<S
             QuarkusClassLoader deploymentClassLoader = curatedApplication.createDeploymentClassLoader();
 
             for (DevModeContext.ModuleInfo module : context.getAllModules()) {
-                if (module.getSourceParent() != null) { // it's null for remote dev
+                if (module.getSourceParents() != null) { // it's null for remote dev
                     codeGens.addAll(
                             CodeGenerator.init(
                                     deploymentClassLoader,
-                                    Paths.get(module.getSourceParent()),
+                                    module.getSourceParents().stream().map(Paths::get).collect(Collectors.toSet()),
                                     Paths.get(module.getPreBuildOutputDir()),
                                     Paths.get(module.getTargetDir()),
                                     sourcePath -> module.addSourcePaths(singleton(sourcePath.toAbsolutePath().toString()))));
