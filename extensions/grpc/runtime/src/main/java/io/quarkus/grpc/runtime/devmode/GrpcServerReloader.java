@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.jboss.logging.Logger;
+
 import io.grpc.HandlerRegistry;
 import io.grpc.ServerInterceptor;
 import io.grpc.ServerMethodDefinition;
@@ -20,6 +22,8 @@ import io.quarkus.runtime.configuration.ProfileManager;
 import io.vertx.grpc.VertxServer;
 
 public class GrpcServerReloader {
+    private static final Logger LOGGER = Logger.getLogger(GrpcServerReloader.class.getName()); // mstodo remove
+
     private static final List<VertxServer> servers = Collections.synchronizedList(new ArrayList<>());
 
     private static final List<ServerServiceDefinition> serviceDefinitions = Collections.synchronizedList(new ArrayList<>());
@@ -78,6 +82,7 @@ public class GrpcServerReloader {
     }
 
     public static void reset() {
+        LOGGER.info("resetting grpc servers"); // mstodo remove all decrease prio of all logging here
         try {
             methods.clear();
             serviceDefinitions.clear();
@@ -91,6 +96,7 @@ public class GrpcServerReloader {
                 throw new IllegalStateException("Non-dev mode streams collector used in development mode");
             }
             ((DevModeStreamsCollector) streamCollector).shutdown();
+            LOGGER.info("resetting grpc servers done");
         } catch (NoSuchFieldException | IllegalAccessException e) {
             throw new IllegalStateException("Unable to reinitialize gRPC server", e);
         }
@@ -99,6 +105,7 @@ public class GrpcServerReloader {
     public static void reinitialize(List<ServerServiceDefinition> serviceDefinitions,
             Map<String, ServerMethodDefinition<?, ?>> methods,
             List<ServerInterceptor> sortedInterceptors) {
+        LOGGER.info("invoked servers reload");
         GrpcServerReloader.methods.putAll(methods);
         GrpcServerReloader.serviceDefinitions.addAll(serviceDefinitions);
         try {
@@ -106,6 +113,7 @@ public class GrpcServerReloader {
             for (VertxServer server : getServers()) {
                 forceSet(server.getRawServer(), "interceptors", interceptorsArray);
             }
+            LOGGER.info("grpc servers reload finished successfully");
         } catch (NoSuchFieldException | IllegalAccessException e) {
             throw new IllegalStateException("Unable to reinitialize gRPC server data", e);
         }

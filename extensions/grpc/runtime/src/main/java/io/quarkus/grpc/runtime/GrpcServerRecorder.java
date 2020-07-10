@@ -75,6 +75,7 @@ public class GrpcServerRecorder {
 
         if (!devMode || GrpcServerReloader.getServers().size() == 0) {
             CompletableFuture<Void> startResult = new CompletableFuture<>();
+            LOGGER.infof("grpc start, devMode: %s, amount of servers: %d", devMode, GrpcServerReloader.getServers().size()); // mstodo rollback
 
             if (devMode) {
                 shutdown.addShutdownTask(
@@ -130,6 +131,7 @@ public class GrpcServerRecorder {
                 LOGGER.error("Unable to start the gRPC server", e.getCause());
             }
         } else {
+            LOGGER.infof("grpc reload", devMode, GrpcServerReloader.getServers().size()); // mstodo rollback
             reinitialize(grpcContainer);
         }
     }
