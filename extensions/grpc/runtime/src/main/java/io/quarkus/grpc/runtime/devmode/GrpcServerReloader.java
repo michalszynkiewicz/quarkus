@@ -6,7 +6,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
+import io.grpc.HandlerRegistry;
 import io.grpc.ServerInterceptor;
 import io.grpc.ServerMethodDefinition;
 import io.grpc.ServerServiceDefinition;
@@ -19,6 +21,9 @@ import io.vertx.grpc.VertxServer;
 
 public class GrpcServerReloader {
     private static final List<VertxServer> servers = Collections.synchronizedList(new ArrayList<>());
+
+    private static final List<ServerServiceDefinition> serviceDefinitions = Collections.synchronizedList(new ArrayList<>());
+    private static final Map<String, ServerMethodDefinition<?, ?>> methods = new ConcurrentHashMap<>();
 
     public static Collection<VertxServer> getServers() {
         return Collections.unmodifiableCollection(servers);
@@ -39,15 +44,45 @@ public class GrpcServerReloader {
         return new DevModeStreamsCollector();
     }
 
-    public static void reset() {
+    public static void init() {
         try {
+            ServerCalls.setStreamCollector(GrpcServerReloader.devModeCollector());
             Field registryField = ServerImpl.class.getDeclaredField("registry");
             registryField.setAccessible(true);
+            // all servers should have the same service definitions and methods, choose one and init everything based on it:
+            if (servers.isEmpty()) {
+                return;
+            }
+            initServicesAndMethods(registryField);
 
             for (VertxServer server : getServers()) {
                 Object registryObject = registryField.get(server.getRawServer());
-                forceSet(registryObject, "services", null);
-                forceSet(registryObject, "methods", null);
+                forceSet(registryObject, "services", GrpcServerReloader.serviceDefinitions);
+                forceSet(registryObject, "methods", GrpcServerReloader.methods);
+            }
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new IllegalStateException("Unable to reinitialize gRPC server", e);
+        }
+    }
+
+    private static void initServicesAndMethods(Field registryField) throws IllegalAccessException, NoSuchFieldException {
+        VertxServer representative = servers.get(0);
+        HandlerRegistry registryObject = (HandlerRegistry) registryField.get(representative.getRawServer());
+        serviceDefinitions.addAll(registryObject.getServices());
+        Field methodsField = registryObject.getClass().getDeclaredField("methods");
+        methodsField.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<String, ServerMethodDefinition<?, ?>> methods = (Map<String, ServerMethodDefinition<?, ?>>) methodsField
+                .get(registryObject);
+        GrpcServerReloader.methods.putAll(methods);
+    }
+
+    public static void reset() {
+        try {
+            methods.clear();
+            serviceDefinitions.clear();
+
+            for (VertxServer server : getServers()) {
                 forceSet(server.getRawServer(), "interceptors", null);
             }
 
@@ -64,19 +99,15 @@ public class GrpcServerReloader {
     public static void reinitialize(List<ServerServiceDefinition> serviceDefinitions,
             Map<String, ServerMethodDefinition<?, ?>> methods,
             List<ServerInterceptor> sortedInterceptors) {
+        GrpcServerReloader.methods.putAll(methods);
+        GrpcServerReloader.serviceDefinitions.addAll(serviceDefinitions);
         try {
-            Field registryField = ServerImpl.class.getDeclaredField("registry");
-            registryField.setAccessible(true);
-
             ServerInterceptor[] interceptorsArray = sortedInterceptors.toArray(new ServerInterceptor[0]);
             for (VertxServer server : getServers()) {
-                Object registryObject = registryField.get(server.getRawServer());
-                forceSet(registryObject, "services", serviceDefinitions);
-                forceSet(registryObject, "methods", methods);
                 forceSet(server.getRawServer(), "interceptors", interceptorsArray);
             }
         } catch (NoSuchFieldException | IllegalAccessException e) {
-            throw new IllegalStateException("Unable to nullify gRPC server data", e);
+            throw new IllegalStateException("Unable to reinitialize gRPC server data", e);
         }
     }
 

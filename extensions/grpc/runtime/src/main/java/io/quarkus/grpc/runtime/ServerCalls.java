@@ -182,7 +182,7 @@ public class ServerCalls {
     }
 
     // for dev mode only!
-    static void setStreamCollector(StreamCollector collector) {
+    public static void setStreamCollector(StreamCollector collector) {
         streamCollector = collector;
     }
 

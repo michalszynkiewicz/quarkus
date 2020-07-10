@@ -77,7 +77,6 @@ public class GrpcServerRecorder {
             CompletableFuture<Void> startResult = new CompletableFuture<>();
 
             if (devMode) {
-                ServerCalls.setStreamCollector(GrpcServerReloader.devModeCollector());
                 shutdown.addShutdownTask(
                         new Runnable() { // NOSONAR
                             @Override
@@ -109,6 +108,10 @@ public class GrpcServerRecorder {
                                             });
                                 }
                             });
+
+                            if (devMode) {
+                                GrpcServerReloader.init();
+                            }
                             LOGGER.infof("gRPC Server started on %s:%d [SSL enabled: %s]",
                                     configuration.host, configuration.port, !configuration.plainText);
 
