@@ -119,7 +119,8 @@ jobs:
           - {
             name: Java 11,
             java-version: 11,
-            maven_args: "-pl !integration-tests/gradle"
+#            mstodo rollback all the changes here
+            maven_args: "-pl extensions/grpc/deployment"
           }
           - {
             name: Java 14,

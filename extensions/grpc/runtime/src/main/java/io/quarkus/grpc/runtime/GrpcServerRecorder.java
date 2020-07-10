@@ -299,7 +299,9 @@ public class GrpcServerRecorder {
 
         @Override
         public void stop(Promise<Void> stopPromise) {
-            LOGGER.debug("Stopping gRPC server");
+            //            LOGGER.debug("Stopping gRPC server");
+            //mstodo rollback
+            System.out.println("shutting down grpc server");
             grpcServer.shutdown(new Handler<AsyncResult<Void>>() { // NOSONAR
                 @Override
                 public void handle(AsyncResult<Void> ar) {

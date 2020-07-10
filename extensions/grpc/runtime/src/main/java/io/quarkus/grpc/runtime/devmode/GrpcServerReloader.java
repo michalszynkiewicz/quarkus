@@ -89,6 +89,7 @@ public class GrpcServerReloader {
 
             for (VertxServer server : getServers()) {
                 forceSet(server.getRawServer(), "interceptors", null);
+                LOGGER.info("resetting grpc server interceptors"); // mstodo remove all decrease prio of all logging here
             }
 
             StreamCollector streamCollector = ServerCalls.getStreamCollector();
@@ -128,6 +129,7 @@ public class GrpcServerReloader {
     }
 
     public static void removeServer(VertxServer grpcServer) {
+        LOGGER.info("unregistreing grpc server"); // mstodo remove
         servers.remove(grpcServer);
     }
 }
