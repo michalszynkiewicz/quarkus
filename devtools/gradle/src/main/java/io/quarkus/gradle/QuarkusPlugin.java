@@ -138,7 +138,8 @@ public class QuarkusPlugin implements Plugin<Project> {
 
                     Task classesTask = tasks.getByName(JavaPlugin.CLASSES_TASK_NAME);
                     Task resourcesTask = tasks.getByName(JavaPlugin.PROCESS_RESOURCES_TASK_NAME);
-                    quarkusDev.dependsOn(classesTask, resourcesTask);
+                    quarkusDev.dependsOn(classesTask, resourcesTask, quarkusPrepare);
+                    quarkusDev.mustRunAfter(quarkusPrepare);
                     quarkusRemoteDev.dependsOn(classesTask, resourcesTask);
                     quarkusBuild.dependsOn(classesTask, resourcesTask, tasks.getByName(JavaPlugin.JAR_TASK_NAME));
 

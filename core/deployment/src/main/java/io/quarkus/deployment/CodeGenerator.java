@@ -21,10 +21,13 @@ public class CodeGenerator {
             Set<Path> sourceParentDirs, Path generatedSourcesDir, Path buildDir,
             Consumer<Path> sourceRegistrar,
             AppModel appModel) throws CodeGenException {
+        System.out.println("code generators initAndRun"); // mstodo remove
         List<CodeGenData> generators = init(classLoader, sourceParentDirs, generatedSourcesDir, buildDir, sourceRegistrar);
+        System.out.println("code generators initialized"); // mstodo remove
         for (CodeGenData generator : generators) {
             trigger(classLoader, generator, appModel);
         }
+        System.out.println("code generators finished"); // mstodo remove
     }
 
     public static List<CodeGenData> init(ClassLoader deploymentClassLoader,
