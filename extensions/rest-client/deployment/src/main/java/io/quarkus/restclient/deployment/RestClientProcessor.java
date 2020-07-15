@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.enterprise.context.SessionScoped;
 import javax.ws.rs.Path;
@@ -169,8 +168,6 @@ class RestClientProcessor {
             restClient.produce(new RestClientBuildItem(interfaze.toString()));
         }
 
-        warnAboutNotWorkingFeaturesInNative(packageConfig, interfaces);
-
         for (Map.Entry<DotName, ClassInfo> entry : interfaces.entrySet()) {
             String iName = entry.getKey().toString();
             // the native image proxy definitions have to be separate because
@@ -225,40 +222,6 @@ class RestClientProcessor {
 
         // Indicates that this extension would like the SSL support to be enabled
         extensionSslNativeSupport.produce(new ExtensionSslNativeSupportBuildItem(Feature.REST_CLIENT));
-    }
-
-    // currently default methods on a rest-client interface
-    // that is annotated with ClientHeaderParam
-    // leads to NPEs (see https://github.com/quarkusio/quarkus/issues/10249)
-    // so lets warn users about its use
-    private void warnAboutNotWorkingFeaturesInNative(PackageConfig packageConfig, Map<DotName, ClassInfo> interfaces) {
-        if (!packageConfig.type.equalsIgnoreCase(PackageConfig.NATIVE)) {
-            return;
-        }
-        Set<DotName> dotNames = new HashSet<>();
-        for (ClassInfo interfaze : interfaces.values()) {
-            if (interfaze.classAnnotation(CLIENT_HEADER_PARAM) != null) {
-                boolean hasDefault = false;
-                for (MethodInfo method : interfaze.methods()) {
-                    if (isDefault(method.flags())) {
-                        hasDefault = true;
-                        break;
-                    }
-                }
-                if (hasDefault) {
-                    dotNames.add(interfaze.name());
-                }
-            }
-        }
-        if (!dotNames.isEmpty()) {
-            log.warnf("rest-client interfaces that contain default methods and are annotated with '@" + CLIENT_HEADER_PARAM
-                    + "' might not work properly in native mode. Offending interfaces are: "
-                    + dotNames.stream().map(d -> "'" + d.toString() + "'").collect(Collectors.joining(", ")));
-        }
-    }
-
-    private static boolean isDefault(short flags) {
-        return ((flags & (Modifier.ABSTRACT | Modifier.PUBLIC | Modifier.STATIC)) == Modifier.PUBLIC);
     }
 
     private void findInterfaces(IndexView index, Map<DotName, ClassInfo> interfaces, Set<Type> returnTypes,

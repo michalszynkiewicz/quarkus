@@ -43,8 +43,8 @@
                         <exclude>org.eclipse.microprofile.rest.client.tck.cditests.HasConversationScopeTest</exclude>
 
                         <!-- We have our own version of these tests which set up a config environment -->
-                        <exclude>org.eclipse.microprofile.rest.client.tck.InvokeWithJsonBProviderTest</exclude>
-                        <exclude>org.eclipse.microprofile.rest.client.tck.InvokeWithJsonPProviderTest</exclude>
+                        <!--                        <exclude>org.eclipse.microprofile.rest.client.tck.InvokeWithJsonBProviderTest</exclude>-->
+                        <!--                        <exclude>org.eclipse.microprofile.rest.client.tck.InvokeWithJsonPProviderTest</exclude>-->
 
                         <!-- The connection timeout is too small -->
                         <exclude>org/eclipse/microprofile/rest/client/tck/timeout/*.java</exclude>

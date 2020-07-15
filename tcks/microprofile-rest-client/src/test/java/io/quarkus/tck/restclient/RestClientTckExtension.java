@@ -7,5 +7,7 @@ public class RestClientTckExtension implements LoadableExtension {
     @Override
     public void register(ExtensionBuilder builder) {
         builder.service(ApplicationArchiveProcessor.class, RestClientProcessor.class);
+
+        builder.observer(JsonXProviderTestsObserver.class);
     }
 }
