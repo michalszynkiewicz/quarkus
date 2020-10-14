@@ -6,11 +6,6 @@ import io.vertx.core.Handler;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 
-/**
- * @author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com
- *         <br>
- *         Date: 01/10/2019
- */
 @Recorder
 public class ReactiveHttpRecorder {
 

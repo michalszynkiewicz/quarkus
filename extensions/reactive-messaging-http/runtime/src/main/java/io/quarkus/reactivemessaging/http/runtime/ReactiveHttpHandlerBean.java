@@ -14,18 +14,13 @@ import io.reactivex.processors.BehaviorProcessor;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.RoutingContext;
 
-/**
- * @author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com
- *         <br>
- *         Date: 01/10/2019
- */
 @Singleton
 public class ReactiveHttpHandlerBean {
 
     @Inject
     ReactiveHttpConfig config;
 
-    private final Map<String, BehaviorProcessor> processors = new HashMap<>();
+    private final Map<String, BehaviorProcessor<HttpMessage>> processors = new HashMap<>();
     private final Map<String, BehaviorProcessor> websocketProcessors = new HashMap<>();
 
     public void handleHttp(RoutingContext event) {
@@ -54,7 +49,7 @@ public class ReactiveHttpHandlerBean {
     }
 
     public <T> BehaviorProcessor<HttpMessage> getProcessor(String path, HttpMethod method) {
-        BehaviorProcessor processor = processors.get(key(path, method));
+        BehaviorProcessor<HttpMessage> processor = processors.get(key(path, method));
         if (processor == null) {
             throw new IllegalStateException("No incoming stream defined for path " + path + " and method " + method);
         }
