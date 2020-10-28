@@ -1,5 +1,7 @@
 package io.quarkus.reactivemessaging.http.runtime;
 
+import static io.smallrye.reactive.messaging.annotations.ConnectorAttribute.Direction.INCOMING;
+
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 
@@ -10,13 +12,10 @@ import org.eclipse.microprofile.reactive.streams.operators.PublisherBuilder;
 import org.eclipse.microprofile.reactive.streams.operators.ReactiveStreams;
 
 import io.reactivex.processors.BehaviorProcessor;
+import io.smallrye.reactive.messaging.annotations.ConnectorAttribute;
 
-/**
- * @author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com
- *         <br>
- *         Date: 28/08/2019
- */
 @Connector(QuarkusWebsocketConnector.NAME)
+@ConnectorAttribute(name = "path", type = "string", direction = INCOMING, description = "The path of the endpoint", mandatory = true)
 @ApplicationScoped
 public class QuarkusWebsocketConnector implements IncomingConnectorFactory {
     public static final String NAME = "quarkus-websocket";

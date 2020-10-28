@@ -9,7 +9,6 @@ import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
-import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.reactivemessaging.http.runtime.QuarkusHttpConnector;
 import io.quarkus.reactivemessaging.http.runtime.QuarkusWebsocketConnector;
 import io.quarkus.reactivemessaging.http.runtime.ReactiveHttpHandlerBean;
@@ -31,10 +30,11 @@ public class ReactiveHttpProcessor {
     @Inject
     BuildProducer<RouteBuildItem> routeProducer;
 
-    @BuildStep
-    FeatureBuildItem feature() {
-        return new FeatureBuildItem(FeatureBuildItem.REACTIVE_MESSAGING_HTTP);
-    }
+    // mstodo this seems no longer necessary
+    //    @BuildStep
+    //    FeatureBuildItem feature() {
+    //        return new FeatureBuildItem(FeatureBuildItem.REACTIVE_MESSAGING_HTTP);
+    //    }
 
     @BuildStep
     @Record(ExecutionTime.RUNTIME_INIT)
@@ -55,7 +55,10 @@ public class ReactiveHttpProcessor {
             httpConfigs.stream()
                     .map(HttpStreamConfig::path)
                     .distinct()
-                    .forEach(path -> registerRoute(path, bodyHandler, handler));
+                    .forEach(path -> {
+                        routeProducer.produce(new RouteBuildItem(path, bodyHandler));
+                        routeProducer.produce(new RouteBuildItem(path, handler));
+                    });
         }
         if (!wsConfigs.isEmpty()) {
             Handler<RoutingContext> handler = recorder.createWebsocketHandler();
@@ -63,15 +66,7 @@ public class ReactiveHttpProcessor {
             wsConfigs.stream()
                     .map(WebsocketStreamConfig::path)
                     .distinct()
-                    .forEach(path -> registerRoute(path, handler));
-        }
-    }
-
-    private void registerRoute(String path,
-            Handler<RoutingContext>... handlers) {
-
-        for (Handler<RoutingContext> handler : handlers) {
-            routeProducer.produce(new RouteBuildItem(path, handler));
+                    .forEach(path -> routeProducer.produce(new RouteBuildItem(path, handler)));
         }
     }
 }

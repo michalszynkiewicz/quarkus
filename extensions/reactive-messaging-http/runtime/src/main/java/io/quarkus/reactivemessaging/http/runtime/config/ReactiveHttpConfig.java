@@ -17,17 +17,12 @@ import org.eclipse.microprofile.config.spi.ConfigProviderResolver;
 import io.quarkus.reactivemessaging.http.runtime.QuarkusHttpConnector;
 import io.quarkus.reactivemessaging.http.runtime.QuarkusWebsocketConnector;
 
-/**
- * ms@author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com
- * <br>
- * Date: 27/09/2019
- */
 @Singleton
 public class ReactiveHttpConfig {
     private static final String CONNECTOR = ".connector";
     private static final String MP_MSG_IN = "mp.messaging.incoming.";
     private static final String REACTIVE_STREAM_KEY = "mp.messaging.incoming.%s.%s";
-    private static final Pattern REACTIVE_STREAM_PATTERN = Pattern.compile(quote(MP_MSG_IN) + "[^\\.]+" + quote(CONNECTOR));
+    private static final Pattern REACTIVE_STREAM_PATTERN = Pattern.compile(quote(MP_MSG_IN) + "[^.]+" + quote(CONNECTOR));
 
     private List<HttpStreamConfig> httpConfigs;
     private List<WebsocketStreamConfig> websocketConfigs;
@@ -57,7 +52,7 @@ public class ReactiveHttpConfig {
                 String connectorType = getConfigProperty(connectorName, "connector", "");
                 if (QuarkusHttpConnector.NAME.equals(connectorType)) {
                     String method = getConfigProperty(connectorName, "method");
-                    String contentType = getConfigProperty(connectorName, "content-type");
+                    //                    String contentType = getConfigProperty(connectorName, "content-type"); // mstodo needed or not?
                     String path = getConfigProperty(connectorName, "path");
                     streamConfigs.add(new HttpStreamConfig(path, method, connectorName));
                 }

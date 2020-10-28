@@ -2,11 +2,6 @@ package io.quarkus.reactivemessaging.http.runtime.config;
 
 import io.vertx.core.http.HttpMethod;
 
-/**
- * @author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com
- *         <br>
- *         Date: 27/09/2019
- */
 public class HttpStreamConfig {
     public final HttpMethod method;
     public final String path;
