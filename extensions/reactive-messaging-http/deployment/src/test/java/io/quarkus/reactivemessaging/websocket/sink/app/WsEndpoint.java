@@ -2,21 +2,32 @@ package io.quarkus.reactivemessaging.websocket.sink.app;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
 
-import org.eclipse.microprofile.reactive.messaging.Incoming;
+import javax.enterprise.context.ApplicationScoped;
+import javax.websocket.OnError;
+import javax.websocket.OnMessage;
+import javax.websocket.server.ServerEndpoint;
 
-import io.quarkus.reactivemessaging.http.runtime.WebsocketMessage;
+import org.jboss.logging.Logger;
 
+@ApplicationScoped
+@ServerEndpoint("/ws-target-url")
 public class WsEndpoint {
-    private final List<WebsocketMessage> messages = new ArrayList<>();
+    private static final Logger log = Logger.getLogger(WsEndpoint.class);
+    private final List<String> messages = new ArrayList<>();
 
-    @Incoming("my-ws-source")
-    public CompletionStage<Void> process(WebsocketMessage message) {
-        messages.add(message);
-        CompletableFuture<Void> result = new CompletableFuture<>();
-        result.complete(null);
-        return result;
+    @OnError
+    void onError(Throwable error) {
+        log.error("Unexpected error in the test websocket server", error);
+    }
+
+    @OnMessage
+    void consumeMessage(byte[] message) {
+        System.out.println("onMessage::binary");
+        messages.add(new String(message));
+    }
+
+    public List<String> getMessages() {
+        return messages;
     }
 }

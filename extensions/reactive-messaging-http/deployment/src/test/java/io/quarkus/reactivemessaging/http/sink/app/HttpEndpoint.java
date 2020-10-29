@@ -18,7 +18,6 @@ public class HttpEndpoint {
     @Route(path = "/some-target-url", methods = HttpMethod.POST)
     void handlePost(RoutingContext ctx) {
         ctx.getBodyAsString();
-        ctx.request().headers().entries();
         receivedRequests.add(new Request(ctx.getBodyAsString(), ctx.request().headers().entries()));
     }
 

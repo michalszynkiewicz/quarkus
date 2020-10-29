@@ -9,7 +9,7 @@ import javax.inject.Inject;
 
 import org.jboss.shrinkwrap.api.ShrinkWrap;
 import org.jboss.shrinkwrap.api.spec.JavaArchive;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
@@ -28,7 +28,7 @@ class HttpSourceTest {
     @Inject
     Consumer consumer;
 
-    @BeforeEach
+    @AfterEach
     void setUp() {
         consumer.getPostMessages().clear();
         consumer.getPutMessages().clear();

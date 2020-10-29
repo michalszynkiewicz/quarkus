@@ -11,6 +11,7 @@ import javax.inject.Inject;
 import org.jboss.shrinkwrap.api.ShrinkWrap;
 import org.jboss.shrinkwrap.api.spec.JavaArchive;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -47,6 +48,11 @@ class WebsocketSourceTest {
 
         assertThat(consumer.getMessages()).hasSize(1);
         assertThat(consumer.getMessages().get(0).getPayload().toString()).isEqualTo("test-message");
+    }
+
+    @AfterEach
+    void cleanUp() {
+        consumer.getMessages().clear();
     }
 
     @BeforeAll

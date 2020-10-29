@@ -53,10 +53,6 @@ public class HttpSink {
             return Uni.createFrom().item("foo");
         });
         return response
-                .map(whatever -> {
-                    System.out.println("peeking :O");
-                    return whatever;
-                })
                 .onItem().transform(resp -> {
                     // mstodo delete souts
                     System.out.println("got some response, status code: " + resp.statusCode());
