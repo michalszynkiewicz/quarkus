@@ -2,18 +2,16 @@ package io.quarkus.reactivemessaging.http.runtime;
 
 import org.eclipse.microprofile.reactive.messaging.Message;
 
-import io.vertx.core.buffer.Buffer;
+public class WebsocketMessage<PayloadType> implements Message<PayloadType> {
 
-public class WebsocketMessage implements Message<Buffer> {
+    private final PayloadType payload;
 
-    private final Buffer buffer;
-
-    public WebsocketMessage(Buffer buffer) {
-        this.buffer = buffer;
+    public WebsocketMessage(PayloadType payload) {
+        this.payload = payload;
     }
 
     @Override
-    public Buffer getPayload() {
-        return buffer;
+    public PayloadType getPayload() {
+        return payload;
     }
 }

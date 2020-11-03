@@ -47,7 +47,8 @@ class WebsocketSourceTest {
                 .verify(5, TimeUnit.SECONDS);
 
         assertThat(consumer.getMessages()).hasSize(1);
-        assertThat(consumer.getMessages().get(0).getPayload().toString()).isEqualTo("test-message");
+        String payload = consumer.getMessages().get(0);
+        assertThat(payload).isEqualTo("test-message");
     }
 
     @AfterEach

@@ -9,22 +9,20 @@ import javax.enterprise.context.ApplicationScoped;
 
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 
-import io.quarkus.reactivemessaging.http.runtime.WebsocketMessage;
-
 @ApplicationScoped
 public class Consumer {
 
-    private final List<WebsocketMessage> messages = new ArrayList<>();
+    private final List<String> messages = new ArrayList<>();
 
     @Incoming("my-ws-source")
-    public CompletionStage<Void> process(WebsocketMessage message) {
+    public CompletionStage<Void> process(String message) {
         messages.add(message);
         CompletableFuture<Void> result = new CompletableFuture<>();
         result.complete(null);
         return result;
     }
 
-    public List<WebsocketMessage> getMessages() {
+    public List<String> getMessages() { // mstodo deserializers
         return messages;
     }
 }

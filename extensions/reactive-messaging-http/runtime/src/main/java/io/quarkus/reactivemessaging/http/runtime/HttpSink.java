@@ -3,6 +3,8 @@ package io.quarkus.reactivemessaging.http.runtime;
 import org.eclipse.microprofile.reactive.streams.operators.ReactiveStreams;
 import org.eclipse.microprofile.reactive.streams.operators.SubscriberBuilder;
 
+import io.quarkus.reactivemessaging.http.runtime.serializers.Serializer;
+import io.quarkus.reactivemessaging.http.runtime.serializers.SerializerFactoryBase;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.Vertx;
 import io.vertx.mutiny.core.buffer.Buffer;
@@ -12,43 +14,67 @@ import io.vertx.mutiny.ext.web.client.WebClient;
 
 public class HttpSink {
 
-    private final SubscriberBuilder<HttpMessage, Void> subscriber;
+    private final SubscriberBuilder<HttpMessage<?>, Void> subscriber;
     private final WebClient client;
     private final String method;
     private final String url;
+    private final SerializerFactoryBase serializerFactory;
+    private final String serializerName;
 
-    public HttpSink(Vertx vertx, String method, String url) {
+    HttpSink(Vertx vertx, String method, String url,
+            String serializerName,
+            SerializerFactoryBase serializerFactory) {
         //  mstodo drop or use       HttpClient client = vertx.createHttpClient();
         // mstodo: what's the difference between webclient and http client?
 
         client = WebClient.create(io.vertx.mutiny.core.Vertx.newInstance(vertx));
-        subscriber = ReactiveStreams.<HttpMessage> builder()
+        subscriber = ReactiveStreams.<HttpMessage<?>> builder()
                 .flatMapCompletionStage(m -> send(m)
                         .onItem().transformToUni(v -> Uni.createFrom().completionStage(m.ack().thenApply(x -> m)))
-                        .onSubscribe().invoke(() -> System.out.println("someone subscribed"))
                         .subscribeAsCompletionStage())
                 .ignore();
         this.method = method;// mstodo
         this.url = url;// mstodo
+        this.serializerFactory = serializerFactory;
+
+        this.serializerName = serializerName;
     }
 
-    public SubscriberBuilder<HttpMessage, Void> sink() {
+    public SubscriberBuilder<HttpMessage<?>, Void> sink() {
         return subscriber;
     }
 
-    private Uni<Void> send(HttpMessage message) {
-        //        Serializer<Object> serializer = Serializer.lookup(message.getPayload(), converterClass);
+    private Uni<Void> send(HttpMessage<?> message) {
         HttpRequest<?> request = toHttpRequest(message);
-        return invoke(request, Buffer.buffer(message.getPayload().getByteBuf())) // mstodo
+        Buffer payload = serialize(message.getPayload()); // mstodo cache serializer!?
+        return invoke(request, payload) // mstodo
                 .onItem().transformToUni(x -> Uni.createFrom().completionStage(message.ack()));
     }
 
+    // mstodo clean-up generics
+    private Buffer serialize(Object payload) {
+        System.out.println("will select a serializer and serialize " + payload); // mstodo drop it
+
+        io.vertx.core.buffer.Buffer buffer; // mstodo clean up the try
+        try {
+            Serializer serializer = serializerFactory.getSerializer(serializerName, payload); // mstodo proper error handling for this!!!
+            buffer = serializer.serialize(payload);
+        } catch (Exception any) {
+            any.printStackTrace();
+            throw new RuntimeException(any);
+        }
+        System.out.println("serialized " + buffer.toString()); // mstodo drop it
+
+        // mstodo maybe the serializers could produce both kinds of buffers?
+        return Buffer.buffer(buffer.getBytes());
+    }
+
     private Uni<Void> invoke(HttpRequest<?> request, Buffer buffer) {
-        System.out.println("invoke"); // mstodo drop it
         Uni<? extends HttpResponse<?>> response = request
                 .sendBuffer(buffer);
+        System.out.println("will send " + buffer.toString()); // mstodo drop it
         response.onFailure().call(error -> {
-            System.out.println("eror caught");
+            System.out.println("error caught"); // mstodo error handling
             error.printStackTrace();
             return Uni.createFrom().item("foo");
         });

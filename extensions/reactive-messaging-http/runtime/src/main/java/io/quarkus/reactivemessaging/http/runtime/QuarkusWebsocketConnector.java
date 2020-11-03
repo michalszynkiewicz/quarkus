@@ -16,6 +16,7 @@ import org.eclipse.microprofile.reactive.streams.operators.PublisherBuilder;
 import org.eclipse.microprofile.reactive.streams.operators.ReactiveStreams;
 import org.eclipse.microprofile.reactive.streams.operators.SubscriberBuilder;
 
+import io.quarkus.reactivemessaging.http.runtime.serializers.SerializerFactoryBase;
 import io.reactivex.processors.BehaviorProcessor;
 import io.smallrye.reactive.messaging.annotations.ConnectorAttribute;
 import io.vertx.core.Vertx;
@@ -30,19 +31,24 @@ public class QuarkusWebsocketConnector implements IncomingConnectorFactory, Outg
     ReactiveHttpHandlerBean handlerBean;
 
     @Inject
+    SerializerFactoryBase serializerFactory;
+
+    @Inject
     Vertx vertx;
 
     @Override
-    public PublisherBuilder<HttpMessage> getPublisherBuilder(Config config) {
+    public PublisherBuilder<WebsocketMessage<?>> getPublisherBuilder(Config config) {
         String path = getRequiredAttribute(config, "path", String.class);
 
-        BehaviorProcessor<HttpMessage> processor = handlerBean.getWebsocketProcessor(path);
+        BehaviorProcessor<WebsocketMessage<?>> processor = handlerBean.getWebsocketProcessor(path);
         return ReactiveStreams.fromPublisher(processor);
     }
 
     @Override
     public SubscriberBuilder<? extends Message<?>, Void> getSubscriberBuilder(Config config) {
-        return new WebsocketSink(vertx, getRequiredAttribute(config, "url", URI.class)).sink();
+        String serializer = config.getOptionalValue("serializer", String.class).orElse(null);
+        URI url = getRequiredAttribute(config, "url", URI.class);
+        return new WebsocketSink(vertx, url, serializer, serializerFactory).sink();
     }
 
     private <T> T getRequiredAttribute(Config config, String attributeName, Class<T> type) {

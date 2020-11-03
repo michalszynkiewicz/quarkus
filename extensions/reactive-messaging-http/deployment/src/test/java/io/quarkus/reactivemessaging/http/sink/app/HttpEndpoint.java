@@ -12,12 +12,12 @@ import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.RoutingContext;
 
 @ApplicationScoped
+// mstodo change to JAX-RS, reactive routes may get dropped soon
 public class HttpEndpoint {
     private List<Request> receivedRequests = new ArrayList<>();
 
-    @Route(path = "/some-target-url", methods = HttpMethod.POST)
+    @Route(path = "/recorder", methods = HttpMethod.POST)
     void handlePost(RoutingContext ctx) {
-        ctx.getBodyAsString();
         receivedRequests.add(new Request(ctx.getBodyAsString(), ctx.request().headers().entries()));
     }
 
@@ -35,6 +35,14 @@ public class HttpEndpoint {
             for (Map.Entry<String, String> header : headers) {
                 this.headers.computeIfAbsent(header.getKey(), whatever -> new ArrayList<>()).add(header.getValue());
             }
+        }
+
+        public String getBody() {
+            return body;
+        }
+
+        public Map<String, List<String>> getHeaders() {
+            return headers;
         }
     }
 }

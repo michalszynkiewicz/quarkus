@@ -16,6 +16,8 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import io.quarkus.reactivemessaging.http.runtime.HttpMessage;
 import io.quarkus.reactivemessaging.http.source.app.Consumer;
 import io.quarkus.test.QuarkusUnitTest;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 
 class HttpSourceTest {
 
@@ -32,10 +34,12 @@ class HttpSourceTest {
     void setUp() {
         consumer.getPostMessages().clear();
         consumer.getPutMessages().clear();
+        consumer.getPayloads().clear();
     }
 
     @Test
     void shouldPassTextContentAndHeaders() {
+        // mstodo proper header support
         String headerName = "my-custom-header";
         String headerValue = "my-custom-header-value";
         // @formatter:off
@@ -48,7 +52,7 @@ class HttpSourceTest {
                 .statusCode(202);
         // @formatter:on
 
-        List<HttpMessage> messages = consumer.getPostMessages();
+        List<HttpMessage<?>> messages = consumer.getPostMessages();
         assertThat(messages).hasSize(1);
         HttpMessage message = messages.get(0);
         assertThat(message.getPayload().toString()).isEqualTo("some-text");
@@ -78,22 +82,77 @@ class HttpSourceTest {
 
     @Test
     void shouldConsumeHttpTwice() {
-        // @formatter:on
+        // @formatter:off
         given()
                 .body("some-text")
-                .when()
+        .when()
                 .post("/my-http-source")
-                .then()
+        .then()
                 .statusCode(202);
 
         given()
                 .body("some-text")
-                .when()
+        .when()
                 .post("/my-http-source")
-                .then()
+        .then()
                 .statusCode(202);
-        // @formatter:off
-        List<HttpMessage> messages = consumer.getPostMessages();
+        // @formatter:on
+        List<HttpMessage<?>> messages = consumer.getPostMessages();
         assertThat(messages).hasSize(2);
+    }
+
+    @Test
+    void shouldConsumeJsonObject() {
+        // @formatter:off
+        given()
+                .body("{\"some\": \"json\"}")
+        .when()
+                .post("/json-http-source")
+        .then()
+                .statusCode(202);
+        // @formatter:on
+
+        List<?> payloads = consumer.getPayloads();
+        assertThat(payloads).hasSize(1);
+        assertThat(payloads.get(0)).isInstanceOf(JsonObject.class);
+        JsonObject payload = (JsonObject) payloads.get(0);
+        assertThat(payload.getString("some")).isEqualTo("json");
+    }
+
+    @Test
+    void shouldConsumeJsonArray() {
+        // mstodo proper header support
+        // @formatter:off
+        given()
+                .body("[{\"some\": \"json\"}]")
+        .when()
+                .post("/jsonarray-http-source")
+        .then()
+                .statusCode(202);
+        // @formatter:on
+
+        List<?> payloads = consumer.getPayloads();
+        assertThat(payloads).hasSize(1);
+        assertThat(payloads.get(0)).isInstanceOf(JsonArray.class);
+        JsonArray payload = (JsonArray) payloads.get(0);
+        assertThat(payload.getJsonObject(0).getString("some")).isEqualTo("json");
+    }
+
+    @Test
+    void shouldConsumeString() {
+        // @formatter:off
+        given()
+                .body("someString")
+        .when()
+                .post("/string-http-source")
+        .then()
+                .statusCode(202);
+        // @formatter:on
+
+        List<?> payloads = consumer.getPayloads();
+        assertThat(payloads).hasSize(1);
+        assertThat(payloads.get(0)).isInstanceOf(String.class);
+        String payload = (String) payloads.get(0);
+        assertThat(payload).isEqualTo("someString");
     }
 }

@@ -22,15 +22,15 @@ public class ReactiveHttpHandlerBean {
     @Inject
     ReactiveHttpConfig config;
 
-    private final Map<String, BehaviorProcessor<HttpMessage>> processors = new HashMap<>();
-    private final Map<String, BehaviorProcessor<WebsocketMessage>> websocketProcessors = new HashMap<>();
+    private final Map<String, BehaviorProcessor<HttpMessage<?>>> processors = new HashMap<>();
+    private final Map<String, BehaviorProcessor<WebsocketMessage<?>>> websocketProcessors = new HashMap<>();
 
     public void handleHttp(RoutingContext event) {
         String path = event.normalisedPath();
         HttpMethod method = event.request().method();
-        BehaviorProcessor<HttpMessage> processor = processors.get(key(path, method));
+        BehaviorProcessor<HttpMessage<?>> processor = processors.get(key(path, method));
         if (processor != null) {
-            processor.onNext(new HttpMessage(event.getBody(), event.request().headers()));
+            processor.onNext(new HttpMessage<>(event.getBody(), event.request().headers()));
             event.response().setStatusCode(202).end();
         } else {
             event.response().setStatusCode(404).end("Handler found but no config for the current path/config pair");
@@ -42,15 +42,15 @@ public class ReactiveHttpHandlerBean {
         // mstodo them should have a different message
         String path = event.normalisedPath();
         // mstodo maybe messages should be generic and have the headers, etc in some context map?
-        BehaviorProcessor<WebsocketMessage> processor = websocketProcessors.get(path);
+        BehaviorProcessor<WebsocketMessage<?>> processor = websocketProcessors.get(path);
         if (processor != null) {
             event.request().toWebSocket(websocket -> {
                 if (websocket.failed()) {
-
+                    // mstodo handle this
                 } else {
                     ServerWebSocket result = websocket.result();
                     result.handler(
-                            b -> processor.onNext(new WebsocketMessage(b)));
+                            b -> processor.onNext(new WebsocketMessage<>(b))); // mstodo this sounds wrong
                 }
             });
         } else {
@@ -58,16 +58,16 @@ public class ReactiveHttpHandlerBean {
         }
     }
 
-    public <T> BehaviorProcessor<HttpMessage> getProcessor(String path, HttpMethod method) {
-        BehaviorProcessor<HttpMessage> processor = processors.get(key(path, method));
+    public BehaviorProcessor<HttpMessage<?>> getProcessor(String path, HttpMethod method) {
+        BehaviorProcessor<HttpMessage<?>> processor = processors.get(key(path, method));
         if (processor == null) {
             throw new IllegalStateException("No incoming stream defined for path " + path + " and method " + method);
         }
         return processor;
     }
 
-    public BehaviorProcessor<HttpMessage> getWebsocketProcessor(String path) {
-        BehaviorProcessor processor = websocketProcessors.get(path);
+    public BehaviorProcessor<WebsocketMessage<?>> getWebsocketProcessor(String path) {
+        BehaviorProcessor<WebsocketMessage<?>> processor = websocketProcessors.get(path);
         if (processor == null) {
             throw new IllegalStateException("No incoming stream defined for path " + path);
         }
@@ -83,15 +83,15 @@ public class ReactiveHttpHandlerBean {
     }
 
     private void addWebsocketProcessor(WebsocketStreamConfig streamConfig) {
-        BehaviorProcessor<WebsocketMessage> processor = BehaviorProcessor.create();
-        BehaviorProcessor previousProcessor = websocketProcessors.put(streamConfig.path, processor);
+        BehaviorProcessor<WebsocketMessage<?>> processor = BehaviorProcessor.create();
+        BehaviorProcessor<?> previousProcessor = websocketProcessors.put(streamConfig.path, processor);
         if (previousProcessor != null) {
             throw new IllegalStateException("Duplicate incoming streams defined for path " + streamConfig.path);
         }
     }
 
     private void addHttpProcessor(HttpStreamConfig streamConfig) {
-        BehaviorProcessor<HttpMessage> processor = BehaviorProcessor.create();
+        BehaviorProcessor<HttpMessage<?>> processor = BehaviorProcessor.create();
         BehaviorProcessor<?> previousProcessor = processors.put(key(streamConfig.path, streamConfig.method), processor);
         if (previousProcessor != null) {
             throw new IllegalStateException("Duplicate incoming streams defined for path " + streamConfig.path

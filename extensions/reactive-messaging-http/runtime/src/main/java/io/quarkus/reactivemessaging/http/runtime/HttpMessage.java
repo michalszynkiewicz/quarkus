@@ -3,26 +3,25 @@ package io.quarkus.reactivemessaging.http.runtime;
 import org.eclipse.microprofile.reactive.messaging.Message;
 
 import io.vertx.core.MultiMap;
-import io.vertx.core.buffer.Buffer;
 
 /**
- * @author Michal Szynkiewicz, michal.l.szynkiewicz@gmail.com
- *         <br>
- *         Date: 28/08/2019
+ * used by http source
+ * 
+ * @param <T> payload type
  */
-public class HttpMessage implements Message<Buffer> {
+public class HttpMessage<T> implements Message<T> {
 
-    private final Buffer buffer;
+    private final T payload;
     private final MultiMap httpHeaders;
 
-    public HttpMessage(Buffer buffer, MultiMap httpHeaders) {
-        this.buffer = buffer;
+    public HttpMessage(T payload, MultiMap httpHeaders) {
+        this.payload = payload;
         this.httpHeaders = httpHeaders;
     }
 
     @Override
-    public Buffer getPayload() {
-        return buffer;
+    public T getPayload() {
+        return payload;
     }
 
     public MultiMap getHttpHeaders() {

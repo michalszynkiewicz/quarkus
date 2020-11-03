@@ -18,12 +18,11 @@ public class WsEndpoint {
 
     @OnError
     void onError(Throwable error) {
-        log.error("Unexpected error in the test websocket server", error);
+        log.error("Unexpected error in the WebsocketSinkTest", error);
     }
 
     @OnMessage
     void consumeMessage(byte[] message) {
-        System.out.println("onMessage::binary");
         messages.add(new String(message));
     }
 

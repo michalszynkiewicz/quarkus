@@ -20,9 +20,14 @@ import io.quarkus.reactivemessaging.http.runtime.QuarkusWebsocketConnector;
 @Singleton
 public class ReactiveHttpConfig {
     private static final String CONNECTOR = ".connector";
+
     private static final String MP_MSG_IN = "mp.messaging.incoming.";
-    private static final String REACTIVE_STREAM_KEY = "mp.messaging.incoming.%s.%s";
-    private static final Pattern REACTIVE_STREAM_PATTERN = Pattern.compile(quote(MP_MSG_IN) + "[^.]+" + quote(CONNECTOR));
+    private static final String IN_KEY = "mp.messaging.incoming.%s.%s";
+    private static final Pattern IN_PATTERN = Pattern.compile(quote(MP_MSG_IN) + "[^.]+" + quote(CONNECTOR));
+
+    private static final String MP_MSG_OUT = "mp.messaging.outgoing.";
+    private static final String OUT_KEY = "mp.messaging.outgoing.%s.%s";
+    private static final Pattern OUT_PATTERN = Pattern.compile(quote(MP_MSG_OUT) + "[^.]+" + quote(CONNECTOR));
 
     private List<HttpStreamConfig> httpConfigs;
     private List<WebsocketStreamConfig> websocketConfigs;
@@ -37,55 +42,82 @@ public class ReactiveHttpConfig {
 
     @PostConstruct
     public void init() {
-        httpConfigs = readHttpConfigs();
-        websocketConfigs = readWebsocketConfigs();
+        httpConfigs = readIncomingHttpConfigs();
+        websocketConfigs = readIncomingWebsocketConfigs();
     }
 
-    public static List<HttpStreamConfig> readHttpConfigs() {
+    public static List<HttpStreamConfig> readIncomingHttpConfigs() {
         List<HttpStreamConfig> streamConfigs = new ArrayList<>();
         Config config = ConfigProviderResolver.instance().getConfig();
         for (String propertyName : config.getPropertyNames()) {
-
-            Matcher matcher = REACTIVE_STREAM_PATTERN.matcher(propertyName);
-            if (matcher.matches()) {
-                String connectorName = propertyName.substring(MP_MSG_IN.length(), propertyName.length() - CONNECTOR.length());
-                String connectorType = getConfigProperty(connectorName, "connector", "");
-                if (QuarkusHttpConnector.NAME.equals(connectorType)) {
-                    String method = getConfigProperty(connectorName, "method");
-                    //                    String contentType = getConfigProperty(connectorName, "content-type"); // mstodo needed or not?
-                    String path = getConfigProperty(connectorName, "path");
-                    streamConfigs.add(new HttpStreamConfig(path, method, connectorName));
-                }
+            String connectorName = getConnectorNameIfMatching(IN_PATTERN, propertyName, IN_KEY, MP_MSG_IN,
+                    QuarkusHttpConnector.NAME);
+            if (connectorName != null) {
+                String method = getConfigProperty(IN_KEY, connectorName, "method");
+                //                    String contentType = getConfigProperty(connectorName, "content-type"); // mstodo needed or not?
+                String path = getConfigProperty(IN_KEY, connectorName, "path");
+                streamConfigs.add(new HttpStreamConfig(path, method, connectorName));
             }
         }
         return streamConfigs;
     }
 
-    public static List<WebsocketStreamConfig> readWebsocketConfigs() {
+    public static List<WebsocketStreamConfig> readIncomingWebsocketConfigs() {
         List<WebsocketStreamConfig> streamConfigs = new ArrayList<>();
         Config config = ConfigProviderResolver.instance().getConfig();
         for (String propertyName : config.getPropertyNames()) {
+            // mstodo simplify it!
+            String connectorName = getConnectorNameIfMatching(IN_PATTERN, propertyName, IN_KEY, MP_MSG_IN,
+                    QuarkusWebsocketConnector.NAME);
 
-            Matcher matcher = REACTIVE_STREAM_PATTERN.matcher(propertyName);
-            if (matcher.matches()) {
-                String connectorName = propertyName.substring(MP_MSG_IN.length(), propertyName.length() - CONNECTOR.length());
-                String connectorType = getConfigProperty(connectorName, "connector", "");
-                if (QuarkusWebsocketConnector.NAME.equals(connectorType)) {
-                    String path = getConfigProperty(connectorName, "path");
-                    streamConfigs.add(new WebsocketStreamConfig(path));
-                }
+            if (connectorName != null) {
+                String path = getConfigProperty(IN_KEY, connectorName, "path");
+                streamConfigs.add(new WebsocketStreamConfig(path));
             }
         }
         return streamConfigs;
     }
 
-    private static String getConfigProperty(String connectorName, String property, String defValue) {
-        String key = String.format(REACTIVE_STREAM_KEY, connectorName, property);
+    public static List<String> readSerializers() {
+        List<String> result = new ArrayList<>();
+        Config config = ConfigProviderResolver.instance().getConfig();
+        for (String propertyName : config.getPropertyNames()) {
+            String connectorName = getConnectorNameIfMatching(OUT_PATTERN, propertyName, OUT_KEY, MP_MSG_OUT,
+                    QuarkusWebsocketConnector.NAME);
+            if (connectorName == null) {
+                connectorName = getConnectorNameIfMatching(OUT_PATTERN, propertyName, OUT_KEY, MP_MSG_OUT,
+                        QuarkusHttpConnector.NAME);
+            }
+            if (connectorName != null) {
+                String serializer = getConfigProperty(OUT_KEY, connectorName, "serializer", null);
+                if (serializer != null) {
+                    result.add(serializer);
+                }
+            }
+        }
+        return result;
+    }
+
+    private static String getConnectorNameIfMatching(Pattern connectorPropertyPattern,
+            String propertyName, String format, String prefix, String expectedConnectorType) {
+        Matcher matcher = connectorPropertyPattern.matcher(propertyName);
+        if (matcher.matches()) {
+            String connectorName = propertyName.substring(prefix.length(), propertyName.length() - CONNECTOR.length());
+            String connectorType = getConfigProperty(format, connectorName, "connector", "");
+            boolean matches = expectedConnectorType.equals(connectorType);
+            return matches ? connectorName : null;
+        } else {
+            return null;
+        }
+    }
+
+    private static String getConfigProperty(String format, String connectorName, String property, String defValue) {
+        String key = String.format(format, connectorName, property);
         return ConfigProvider.getConfig().getOptionalValue(key, String.class).orElse(defValue);
     }
 
-    private static String getConfigProperty(String connectorName, String property) {
-        String key = String.format(REACTIVE_STREAM_KEY, connectorName, property);
+    private static String getConfigProperty(String format, String connectorName, String property) {
+        String key = String.format(format, connectorName, property);
         return ConfigProvider.getConfig().getOptionalValue(key, String.class)
                 .orElseThrow(() -> noPropertyFound(connectorName, property));
     }
