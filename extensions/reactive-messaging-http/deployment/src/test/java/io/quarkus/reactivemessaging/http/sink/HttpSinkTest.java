@@ -99,4 +99,6 @@ class HttpSinkTest {
         assertThat(new JsonObject(body)).isEqualTo(new JsonObject("{\"field\": \"fooo\"}"));
     }
 
+    // mstodo support headers, incoming and outgoing
+
 }
