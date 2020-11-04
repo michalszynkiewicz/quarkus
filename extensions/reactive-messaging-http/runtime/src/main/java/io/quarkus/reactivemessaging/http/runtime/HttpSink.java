@@ -29,9 +29,12 @@ public class HttpSink {
 
         client = WebClient.create(io.vertx.mutiny.core.Vertx.newInstance(vertx));
         subscriber = ReactiveStreams.<HttpMessage<?>> builder()
-                .flatMapCompletionStage(m -> send(m)
-                        .onItem().transformToUni(v -> Uni.createFrom().completionStage(m.ack().thenApply(x -> m)))
-                        .subscribeAsCompletionStage())
+                .flatMapCompletionStage(m -> {
+                    System.out.println("before send");
+                    return send(m)
+                            .onItem().transformToUni(v -> Uni.createFrom().completionStage(m.ack().thenApply(x -> m)))
+                            .subscribeAsCompletionStage();
+                })
                 .ignore();
         this.method = method;// mstodo
         this.url = url;// mstodo
@@ -44,7 +47,9 @@ public class HttpSink {
         return subscriber;
     }
 
+    // mstodo non-blocking serialization?
     private Uni<Void> send(HttpMessage<?> message) {
+        System.out.println("send reached"); // mstodo remove
         HttpRequest<?> request = toHttpRequest(message);
         Buffer payload = serialize(message.getPayload()); // mstodo cache serializer!?
         return invoke(request, payload) // mstodo
@@ -100,6 +105,7 @@ public class HttpSink {
         //        Map<String, ?> query = metadata != null ? metadata.getQuery() : Collections.emptyMap();
 
         HttpRequest<Buffer> request;
+        System.out.println("creating message for method: " + method); // mstodo remove
         switch (method) {
             case "POST":
                 request = client.postAbs(url);
@@ -108,6 +114,7 @@ public class HttpSink {
                 request = client.putAbs(url);
                 break;
             default:
+                System.out.println("unsupported method: " + method); // mstodo remove
                 throw new IllegalArgumentException("Unsupported ");
         }
 

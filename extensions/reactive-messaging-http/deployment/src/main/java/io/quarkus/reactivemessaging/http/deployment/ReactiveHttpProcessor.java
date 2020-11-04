@@ -77,7 +77,6 @@ public class ReactiveHttpProcessor {
                     .forEach(path -> routeProducer.produce(new RouteBuildItem(path, handler)));
         }
 
-        System.out.println("found serializers: " + ReactiveHttpConfig.readSerializers()); // mstodo drop it like it's hot
         initSerializers(ReactiveHttpConfig.readSerializers(), generatedBeanProducer);
     }
 
