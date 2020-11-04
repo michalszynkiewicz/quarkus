@@ -1,5 +1,6 @@
 package io.quarkus.reactivemessaging.http.runtime;
 
+import org.eclipse.microprofile.reactive.messaging.Message;
 import org.eclipse.microprofile.reactive.streams.operators.ReactiveStreams;
 import org.eclipse.microprofile.reactive.streams.operators.SubscriberBuilder;
 
@@ -14,7 +15,7 @@ import io.vertx.mutiny.ext.web.client.WebClient;
 
 public class HttpSink {
 
-    private final SubscriberBuilder<HttpMessage<?>, Void> subscriber;
+    private final SubscriberBuilder<Message<?>, Void> subscriber;
     private final WebClient client;
     private final String method;
     private final String url;
@@ -28,7 +29,7 @@ public class HttpSink {
         // mstodo: what's the difference between webclient and http client?
 
         client = WebClient.create(io.vertx.mutiny.core.Vertx.newInstance(vertx));
-        subscriber = ReactiveStreams.<HttpMessage<?>> builder()
+        subscriber = ReactiveStreams.<Message<?>> builder()
                 .flatMapCompletionStage(m -> {
                     System.out.println("before send");
                     return send(m)
@@ -43,12 +44,12 @@ public class HttpSink {
         this.serializerName = serializerName;
     }
 
-    public SubscriberBuilder<HttpMessage<?>, Void> sink() {
+    public SubscriberBuilder<Message<?>, Void> sink() {
         return subscriber;
     }
 
     // mstodo non-blocking serialization?
-    private Uni<Void> send(HttpMessage<?> message) {
+    private Uni<Void> send(Message<?> message) {
         System.out.println("send reached"); // mstodo remove
         HttpRequest<?> request = toHttpRequest(message);
         Buffer payload = serialize(message.getPayload()); // mstodo cache serializer!?
@@ -96,7 +97,7 @@ public class HttpSink {
                 });
     }
 
-    private HttpRequest<?> toHttpRequest(HttpMessage message) {
+    private HttpRequest<?> toHttpRequest(Message message) {
         //        HttpResponseMetadata metadata = message.getMetadata(HttpResponseMetadata.class).orElse(null);
         //        String actualUrl = metadata != null && metadata.getUrl() != null ? metadata.getUrl() : this.url;
         //        String actualMethod = metadata != null && metadata.getMethod() != null ? metadata.getMethod().toUpperCase()

@@ -1,6 +1,5 @@
 package io.quarkus.reactivemessaging.http.sink.app;
 
-import java.util.Collection;
 import java.util.concurrent.CompletionStage;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -25,7 +24,7 @@ public class HttpRepeater {
 
     // mstodo add a test for serialized json
 
-    // mstodo try collection instead of JsonObject
+    //    // mstodo try collection instead of JsonObject
     //    @Incoming("post-http-source")
     //    @Outgoing("my-http-sink")
     //    HttpMessage<Buffer> passThrough(HttpMessage<Buffer> message) {
@@ -57,18 +56,17 @@ public class HttpRepeater {
     }
 
     @Channel("my-http-sink")
-    Emitter<Buffer> emitter;
+    Emitter<Object> emitter;
     //    Emitter<HttpMessage<Collection<?>>> emitter;
 
-    public CompletionStage<Void> emitMessage(HttpMessage<Collection<?>> message) {
+    public CompletionStage<Void> emitMessage(Object message) {
         try {
-            Collection<?> payload = message.getPayload();
-            log.infof("emitting message %s", payload);
-            Buffer buffer = Buffer.buffer(payload.toString());
-            return emitter.send(buffer).whenComplete((success, failure) -> {
+            return emitter.send(message).whenComplete((success, failure) -> {
                 if (failure != null) {
+                    failure.printStackTrace(); // mstodo
                     log.errorf(failure, "failed to emit message %s", message);
                 } else {
+                    System.out.println("success"); // mstodo
                     log.info("successfully emitted");
                 }
             });

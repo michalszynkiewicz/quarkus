@@ -4,9 +4,7 @@ import static io.restassured.RestAssured.given;
 import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.fail;
 
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import javax.inject.Inject;
@@ -18,11 +16,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
-import io.quarkus.reactivemessaging.http.runtime.HttpMessage;
 import io.quarkus.reactivemessaging.http.sink.app.HttpEndpoint;
 import io.quarkus.reactivemessaging.http.sink.app.HttpRepeater;
 import io.quarkus.test.QuarkusUnitTest;
-import io.vertx.core.MultiMap;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
@@ -78,30 +74,29 @@ class HttpSinkTest {
         String body = httpEndpoint.getReceivedRequests().get(0).getBody();
         assertThat(body).isEqualTo("SOME-TEXT");
     }
+    // mstodo test for emitter returned completion stage finished
+
+    // mstodo add content-type headers from serializer?
 
     @Test
     void shouldSerializeCollectionToJson() throws InterruptedException {
-        CountDownLatch finishedLatch = new CountDownLatch(1);
-        repeater.emitMessage(new HttpMessage<>(asList(new HttpRepeater.Dto("foo"), new HttpRepeater.Dto("bar")),
-                MultiMap.caseInsensitiveMultiMap()))
-                .whenComplete((v, e) -> {
-                    if (e == null) {
-                        System.out.println("finished successfully");
-                    } else {
-                        System.out.println("failed");
-                        e.printStackTrace();
-                    }
-                    finishedLatch.countDown();
-                });
+        repeater.emitMessage(asList(new HttpRepeater.Dto("foo"), new HttpRepeater.Dto("bar")));
 
-        if (!finishedLatch.await(10, TimeUnit.SECONDS)) {
-            fail("failed to emit message in time");
-        }
-        await() // mstodo do we need to wait for it?
-                .atMost(10, TimeUnit.SECONDS)
+        await()
+                .atMost(1, TimeUnit.SECONDS)
                 .until(() -> httpEndpoint.getReceivedRequests(), Matchers.hasSize(1));
         String body = httpEndpoint.getReceivedRequests().get(0).getBody();
         assertThat(new JsonArray(body)).isEqualTo(new JsonArray("[{\"field\": \"foo\"}, {\"field\": \"bar\"}]"));
+    }
+
+    @Test
+    void shouldSerializeObjectToJson() throws InterruptedException {
+        repeater.emitMessage(new HttpRepeater.Dto("fooo"));
+        await()
+                .atMost(1, TimeUnit.SECONDS)
+                .until(() -> httpEndpoint.getReceivedRequests(), Matchers.hasSize(1));
+        String body = httpEndpoint.getReceivedRequests().get(0).getBody();
+        assertThat(new JsonObject(body)).isEqualTo(new JsonObject("{\"field\": \"fooo\"}"));
     }
 
 }
