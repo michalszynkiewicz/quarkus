@@ -25,7 +25,7 @@ public class ReactiveHttpHandlerBean {
     private final Map<String, BehaviorProcessor<HttpMessage<?>>> processors = new HashMap<>();
     private final Map<String, BehaviorProcessor<WebsocketMessage<?>>> websocketProcessors = new HashMap<>();
 
-    public void handleHttp(RoutingContext event) {
+    void handleHttp(RoutingContext event) {
         String path = event.normalisedPath();
         HttpMethod method = event.request().method();
         BehaviorProcessor<HttpMessage<?>> processor = processors.get(key(path, method));
@@ -37,7 +37,7 @@ public class ReactiveHttpHandlerBean {
         }
     }
 
-    public void handleWebsocket(RoutingContext event) {
+    void handleWebsocket(RoutingContext event) {
         //  mstodo drop it, websockets don't have headers, me thinks
         // mstodo them should have a different message
         String path = event.normalisedPath();
@@ -58,7 +58,7 @@ public class ReactiveHttpHandlerBean {
         }
     }
 
-    public BehaviorProcessor<HttpMessage<?>> getProcessor(String path, HttpMethod method) {
+    BehaviorProcessor<HttpMessage<?>> getProcessor(String path, HttpMethod method) {
         BehaviorProcessor<HttpMessage<?>> processor = processors.get(key(path, method));
         if (processor == null) {
             throw new IllegalStateException("No incoming stream defined for path " + path + " and method " + method);
@@ -66,7 +66,7 @@ public class ReactiveHttpHandlerBean {
         return processor;
     }
 
-    public BehaviorProcessor<WebsocketMessage<?>> getWebsocketProcessor(String path) {
+    BehaviorProcessor<WebsocketMessage<?>> getWebsocketProcessor(String path) {
         BehaviorProcessor<WebsocketMessage<?>> processor = websocketProcessors.get(path);
         if (processor == null) {
             throw new IllegalStateException("No incoming stream defined for path " + path);
@@ -75,7 +75,7 @@ public class ReactiveHttpHandlerBean {
     }
 
     @PostConstruct
-    public void init() {
+    void init() {
         config.getHttpConfigs()
                 .forEach(this::addHttpProcessor);
         config.getWebsocketConfigs()

@@ -1,5 +1,9 @@
 package io.quarkus.reactivemessaging.http.runtime;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
 import org.eclipse.microprofile.reactive.messaging.Message;
 import org.eclipse.microprofile.reactive.streams.operators.ReactiveStreams;
 import org.eclipse.microprofile.reactive.streams.operators.SubscriberBuilder;
@@ -7,13 +11,16 @@ import org.eclipse.microprofile.reactive.streams.operators.SubscriberBuilder;
 import io.quarkus.reactivemessaging.http.runtime.serializers.Serializer;
 import io.quarkus.reactivemessaging.http.runtime.serializers.SerializerFactoryBase;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.MultiMap;
 import io.vertx.core.Vertx;
 import io.vertx.mutiny.core.buffer.Buffer;
 import io.vertx.mutiny.ext.web.client.HttpRequest;
-import io.vertx.mutiny.ext.web.client.HttpResponse;
 import io.vertx.mutiny.ext.web.client.WebClient;
 
-public class HttpSink {
+// mstodo test for headers
+// mstodo test for query parameters
+// TODO support path parameters?
+class HttpSink {
 
     private final SubscriberBuilder<Message<?>, Void> subscriber;
     private final WebClient client;
@@ -25,88 +32,58 @@ public class HttpSink {
     HttpSink(Vertx vertx, String method, String url,
             String serializerName,
             SerializerFactoryBase serializerFactory) {
-        //  mstodo drop or use       HttpClient client = vertx.createHttpClient();
-        // mstodo: what's the difference between webclient and http client?
+        this.method = method;
+        this.url = url;
+        this.serializerFactory = serializerFactory;
+        this.serializerName = serializerName;
 
         client = WebClient.create(io.vertx.mutiny.core.Vertx.newInstance(vertx));
         subscriber = ReactiveStreams.<Message<?>> builder()
-                .flatMapCompletionStage(m -> {
-                    System.out.println("before send");
-                    return send(m)
-                            .onItem().transformToUni(v -> Uni.createFrom().completionStage(m.ack().thenApply(x -> m)))
-                            .subscribeAsCompletionStage();
-                })
+                .flatMapCompletionStage(m -> send(m)
+                        .onItem().transformToUni(v -> Uni.createFrom().completionStage(m.ack().thenApply(x -> m)))
+                        // mstodo: should we have a nack somewhere?
+                        .subscribeAsCompletionStage())
                 .ignore();
-        this.method = method;// mstodo
-        this.url = url;// mstodo
-        this.serializerFactory = serializerFactory;
-
-        this.serializerName = serializerName;
     }
 
-    public SubscriberBuilder<Message<?>, Void> sink() {
+    SubscriberBuilder<Message<?>, Void> sink() {
         return subscriber;
     }
 
     // mstodo non-blocking serialization?
     private Uni<Void> send(Message<?> message) {
-        System.out.println("send reached"); // mstodo remove
         HttpRequest<?> request = toHttpRequest(message);
-        Buffer payload = serialize(message.getPayload()); // mstodo cache serializer!?
-        return invoke(request, payload) // mstodo
+        Buffer payload = serialize(message.getPayload());
+        return Uni.createFrom().item(payload)
+                .onItem().transformToUni(buffer -> invoke(request, buffer))
                 .onItem().transformToUni(x -> Uni.createFrom().completionStage(message.ack()));
     }
 
-    // mstodo clean-up generics
-    private Buffer serialize(Object payload) {
-        System.out.println("will select a serializer and serialize " + payload); // mstodo drop it
+    private <T> Buffer serialize(T payload) {
+        Serializer<T> serializer = serializerFactory.getSerializer(serializerName, payload); // mstodo test error handling, like serializer throwing an error
 
-        io.vertx.core.buffer.Buffer buffer; // mstodo clean up the try
-        try {
-            Serializer serializer = serializerFactory.getSerializer(serializerName, payload); // mstodo proper error handling for this!!!
-            buffer = serializer.serialize(payload);
-        } catch (Exception any) {
-            any.printStackTrace();
-            throw new RuntimeException(any);
-        }
-        System.out.println("serialized " + buffer.toString()); // mstodo drop it
-
-        // mstodo maybe the serializers could produce both kinds of buffers?
-        return Buffer.buffer(buffer.getBytes());
+        return Buffer.newInstance(serializer.serialize(payload));
     }
 
     private Uni<Void> invoke(HttpRequest<?> request, Buffer buffer) {
-        Uni<? extends HttpResponse<?>> response = request
-                .sendBuffer(buffer);
-        System.out.println("will send " + buffer.toString()); // mstodo drop it
-        response.onFailure().call(error -> {
-            System.out.println("error caught"); // mstodo error handling
-            error.printStackTrace();
-            return Uni.createFrom().item("foo");
-        });
-        return response
+        return request
+                .sendBuffer(buffer)
                 .onItem().transform(resp -> {
-                    // mstodo delete souts
-                    System.out.println("got some response, status code: " + resp.statusCode());
-                    System.out.println("response body: " + resp.bodyAsString("UTF-8"));
                     if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
                         return null;
                     } else {
-                        throw new RuntimeException("Invalid status code"); // mstodo
+                        throw new RuntimeException("HTTP request returned an invalid status: " + resp.statusCode());
                     }
                 });
     }
 
-    private HttpRequest<?> toHttpRequest(Message message) {
-        //        HttpResponseMetadata metadata = message.getMetadata(HttpResponseMetadata.class).orElse(null);
-        //        String actualUrl = metadata != null && metadata.getUrl() != null ? metadata.getUrl() : this.url;
-        //        String actualMethod = metadata != null && metadata.getMethod() != null ? metadata.getMethod().toUpperCase()
-        //                : this.method.toUpperCase();
-        //        Map<String, ?> httpHeaders = metadata != null ? metadata.getHeaders() : Collections.emptyMap();
-        //        Map<String, ?> query = metadata != null ? metadata.getQuery() : Collections.emptyMap();
+    private HttpRequest<?> toHttpRequest(Message<?> message) {
+        HttpResponseMetadata metadata = message.getMetadata(HttpResponseMetadata.class).orElse((HttpResponseMetadata) null);
+
+        MultiMap httpHeaders = metadata != null ? metadata.getHeaders() : MultiMap.caseInsensitiveMultiMap();
+        Map<String, List<String>> query = metadata != null ? metadata.getQuery() : Collections.emptyMap();
 
         HttpRequest<Buffer> request;
-        System.out.println("creating message for method: " + method); // mstodo remove
         switch (method) {
             case "POST":
                 request = client.postAbs(url);
@@ -115,25 +92,16 @@ public class HttpSink {
                 request = client.putAbs(url);
                 break;
             default:
-                System.out.println("unsupported method: " + method); // mstodo remove
-                throw new IllegalArgumentException("Unsupported ");
+                throw new IllegalArgumentException("Unsupported HTTP method: " + method + "only PUT and POST are supported");
         }
 
-        //        MultiMap requestHttpHeaders = request.headers();
-        //        httpHeaders.forEach((k, v) -> {
-        //            if (v instanceof Collection) {
-        //                ((Collection<Object>) v).forEach(item -> requestHttpHeaders.add(k, item.toString()));
-        //            } else {
-        //                requestHttpHeaders.add(k, v.toString());
-        //            }
-        //        });
-        //        query.forEach((k, v) -> {
-        //            if (v instanceof Collection) {
-        //                ((Collection<Object>) v).forEach(item -> request.addQueryParam(k, item.toString()));
-        //            } else {
-        //                request.addQueryParam(k, v.toString());
-        //            }
-        //        });
+        request.putHeaders(new io.vertx.mutiny.core.MultiMap(httpHeaders));
+
+        for (Map.Entry<String, List<String>> queryParam : query.entrySet()) {
+            for (String queryParamValue : queryParam.getValue()) {
+                request.addQueryParam(queryParam.getKey(), queryParamValue);
+            }
+        }
 
         return request;
     }

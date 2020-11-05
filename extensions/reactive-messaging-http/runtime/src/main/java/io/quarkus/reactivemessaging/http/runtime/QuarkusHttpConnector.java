@@ -26,7 +26,6 @@ import io.smallrye.reactive.messaging.annotations.ConnectorAttribute;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpMethod;
 
-@Connector(QuarkusHttpConnector.NAME)
 
 @ConnectorAttribute(name = "url", type = "string", direction = OUTGOING, description = "The targeted URL", mandatory = true)
 @ConnectorAttribute(name = "serializer", type = "string", direction = OUTGOING, description = "Message serializer")
@@ -34,6 +33,7 @@ import io.vertx.core.http.HttpMethod;
 @ConnectorAttribute(name = "method", type = "string", direction = INCOMING_AND_OUTGOING, description = "The HTTP method (either `POST` or `PUT`)", defaultValue = "POST")
 @ConnectorAttribute(name = "path", type = "string", direction = INCOMING, description = "The path of the endpoint", mandatory = true)
 
+@Connector(QuarkusHttpConnector.NAME)
 @ApplicationScoped
 public class QuarkusHttpConnector implements IncomingConnectorFactory, OutgoingConnectorFactory {
     private static final Logger log = Logger.getLogger(QuarkusHttpConnector.class);
