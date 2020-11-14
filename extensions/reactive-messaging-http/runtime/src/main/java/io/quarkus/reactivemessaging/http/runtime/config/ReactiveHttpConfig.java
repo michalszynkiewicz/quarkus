@@ -1,5 +1,6 @@
 package io.quarkus.reactivemessaging.http.runtime.config;
 
+import static io.quarkus.reactivemessaging.http.runtime.QuarkusHttpConnector.DEFAULT_SOURCE_BUFFER;
 import static java.util.regex.Pattern.quote;
 
 import java.util.ArrayList;
@@ -53,10 +54,11 @@ public class ReactiveHttpConfig {
             String connectorName = getConnectorNameIfMatching(IN_PATTERN, propertyName, IN_KEY, MP_MSG_IN,
                     QuarkusHttpConnector.NAME);
             if (connectorName != null) {
-                String method = getConfigProperty(IN_KEY, connectorName, "method");
-                //                    String contentType = getConfigProperty(connectorName, "content-type"); // mstodo needed or not?
-                String path = getConfigProperty(IN_KEY, connectorName, "path");
-                streamConfigs.add(new HttpStreamConfig(path, method, connectorName));
+                String method = getConfigProperty(IN_KEY, connectorName, "method", String.class);
+                String path = getConfigProperty(IN_KEY, connectorName, "path", String.class);
+                int bufferSize = getConfigProperty(IN_KEY, connectorName, "buffer-size", DEFAULT_SOURCE_BUFFER,
+                        Integer.class) + 1;
+                streamConfigs.add(new HttpStreamConfig(path, method, connectorName, bufferSize));
             }
         }
         return streamConfigs;
@@ -71,7 +73,7 @@ public class ReactiveHttpConfig {
                     QuarkusWebsocketConnector.NAME);
 
             if (connectorName != null) {
-                String path = getConfigProperty(IN_KEY, connectorName, "path");
+                String path = getConfigProperty(IN_KEY, connectorName, "path", String.class);
                 streamConfigs.add(new WebsocketStreamConfig(path));
             }
         }
@@ -103,7 +105,7 @@ public class ReactiveHttpConfig {
         Matcher matcher = connectorPropertyPattern.matcher(propertyName);
         if (matcher.matches()) {
             String connectorName = propertyName.substring(prefix.length(), propertyName.length() - CONNECTOR.length());
-            String connectorType = getConfigProperty(format, connectorName, "connector", "");
+            String connectorType = getConfigProperty(format, connectorName, "connector", String.class);
             boolean matches = expectedConnectorType.equals(connectorType);
             return matches ? connectorName : null;
         } else {
@@ -111,14 +113,14 @@ public class ReactiveHttpConfig {
         }
     }
 
-    private static String getConfigProperty(String format, String connectorName, String property, String defValue) {
+    private static <T> T getConfigProperty(String format, String connectorName, String property, T defValue, Class<T> type) {
         String key = String.format(format, connectorName, property);
-        return ConfigProvider.getConfig().getOptionalValue(key, String.class).orElse(defValue);
+        return ConfigProvider.getConfig().getOptionalValue(key, type).orElse(defValue);
     }
 
-    private static String getConfigProperty(String format, String connectorName, String property) {
+    private static <T> T getConfigProperty(String format, String connectorName, String property, Class<T> type) {
         String key = String.format(format, connectorName, property);
-        return ConfigProvider.getConfig().getOptionalValue(key, String.class)
+        return ConfigProvider.getConfig().getOptionalValue(key, type)
                 .orElseThrow(() -> noPropertyFound(connectorName, property));
     }
 

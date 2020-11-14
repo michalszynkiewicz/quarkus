@@ -7,34 +7,38 @@ import javax.annotation.PostConstruct;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import org.jboss.logging.Logger;
+
 import io.quarkus.reactivemessaging.http.runtime.config.HttpStreamConfig;
 import io.quarkus.reactivemessaging.http.runtime.config.ReactiveHttpConfig;
 import io.quarkus.reactivemessaging.http.runtime.config.WebsocketStreamConfig;
 import io.reactivex.processors.BehaviorProcessor;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.subscription.BackPressureStrategy;
+import io.smallrye.mutiny.subscription.MultiEmitter;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.ext.web.RoutingContext;
 
-// mstodo that needed?
+// mstodo separate http from websocket
 @Singleton
 public class ReactiveHttpHandlerBean {
+
+    private static final Logger log = Logger.getLogger(ReactiveHttpHandlerBean.class);
 
     @Inject
     ReactiveHttpConfig config;
 
-    private final Map<String, BehaviorProcessor<HttpMessage<?>>> processors = new HashMap<>();
+    private final Map<String, HttpProcessorBundle> processors = new HashMap<>();
     private final Map<String, BehaviorProcessor<WebsocketMessage<?>>> websocketProcessors = new HashMap<>();
 
-    void handleHttp(RoutingContext event) {
-        String path = event.normalisedPath();
-        HttpMethod method = event.request().method();
-        BehaviorProcessor<HttpMessage<?>> processor = processors.get(key(path, method));
-        if (processor != null) {
-            processor.onNext(new HttpMessage<>(event.getBody(), event.request().headers()));
-            event.response().setStatusCode(202).end();
-        } else {
-            event.response().setStatusCode(404).end("Handler found but no config for the current path/config pair");
-        }
+    @PostConstruct
+    void init() {
+        config.getHttpConfigs()
+                .forEach(this::addHttpProcessor);
+        config.getWebsocketConfigs()
+                .forEach(this::addWebsocketProcessor);
     }
 
     void handleWebsocket(RoutingContext event) {
@@ -58,14 +62,6 @@ public class ReactiveHttpHandlerBean {
         }
     }
 
-    BehaviorProcessor<HttpMessage<?>> getProcessor(String path, HttpMethod method) {
-        BehaviorProcessor<HttpMessage<?>> processor = processors.get(key(path, method));
-        if (processor == null) {
-            throw new IllegalStateException("No incoming stream defined for path " + path + " and method " + method);
-        }
-        return processor;
-    }
-
     BehaviorProcessor<WebsocketMessage<?>> getWebsocketProcessor(String path) {
         BehaviorProcessor<WebsocketMessage<?>> processor = websocketProcessors.get(path);
         if (processor == null) {
@@ -74,12 +70,46 @@ public class ReactiveHttpHandlerBean {
         return processor;
     }
 
-    @PostConstruct
-    void init() {
-        config.getHttpConfigs()
-                .forEach(this::addHttpProcessor);
-        config.getWebsocketConfigs()
-                .forEach(this::addWebsocketProcessor);
+    void handleHttp(RoutingContext event) {
+        // mstodo remove printlns
+        System.out.println("handling an event");
+        String path = event.normalisedPath();
+        HttpMethod method = event.request().method();
+        String key = key(path, method);
+        HttpProcessorBundle httpProcessorBundle = processors.get(key);
+        if (httpProcessorBundle != null) {
+            System.out.println("found the appropriate bundle");
+            MultiEmitter<? super HttpMessage<?>> emitter = httpProcessorBundle.emitter;
+            // mstodo processor.onNext should throw exception on overflow and we should handle it  - ???
+            StrictQueueSizeGuard guard = httpProcessorBundle.guard;
+            HttpMessage<Buffer> message = new HttpMessage<>(event.getBody(), event.request().headers(), event.response(),
+                    guard::dequeue);
+            System.out.println("created a message, checking if guard allows emission");
+
+            if (guard.prepareToEmit()) {
+                try {
+                    System.out.println("it's a go!");
+                    emitter.emit(message);
+                    event.response().setStatusCode(202).end();
+                    System.out.println("emit called successfully");
+                } catch (Exception any) {
+                    System.out.println("emit failed, will dequeue");
+                    guard.dequeue();
+                    log.error("Emitting message failed", any);
+                    event.response().setStatusCode(500).end();
+                }
+            }
+            //            try {
+            //                processor.onNext(message);
+            //            } catch (Exception whatever) {
+            //                whatever.printStackTrace(); // mstodo remvoe
+            //                event.response().setStatusCode(500);
+            //                return;
+            //            }
+        } else {
+            System.out.println("bundle not found, replying with 404");
+            event.response().setStatusCode(404).end("No http consumer for the given path and method");
+        }
     }
 
     private void addWebsocketProcessor(WebsocketStreamConfig streamConfig) {
@@ -91,8 +121,34 @@ public class ReactiveHttpHandlerBean {
     }
 
     private void addHttpProcessor(HttpStreamConfig streamConfig) {
-        BehaviorProcessor<HttpMessage<?>> processor = BehaviorProcessor.create();
-        BehaviorProcessor<?> previousProcessor = processors.put(key(streamConfig.path, streamConfig.method), processor);
+        String key = key(streamConfig.path, streamConfig.method);
+
+        // emitter with an unbounded queue, we control the size ourselves, with the guard
+        StrictQueueSizeGuard guard = new StrictQueueSizeGuard(streamConfig.bufferSize);
+        HttpProcessorBundle bundle = new HttpProcessorBundle(guard);
+        Multi<HttpMessage<?>> processor = Multi.createFrom().<HttpMessage<?>> emitter(emitter -> bundle.setEmitter(emitter),
+                BackPressureStrategy.BUFFER).onOverflow().buffer();
+        bundle.setProcessor(processor);
+        // mstodo no subscribe until the consumer is connected
+        //        httpEmitter.subscribe().with(consumer.consumer());
+
+        //        Multi<HttpMessage<?>> httpMessageEmitter =
+        //        Multi<HttpMessage<?>> httpEmitter = Multi.createFrom()
+        //                .<HttpMessage<?>> emitter(emitter -> emitters.put(key, emitter)/* , BackPressureStrategy.BUFFER */);
+        //        MultiOverflow<HttpMessage<?>> multiOverflow = httpEmitter
+        //                .onOverflow();
+        //        Multi<HttpMessage<?>> httpMessageEmitter = Infrastructure
+        //                .onMultiCreation(new MultiOnOverflowBufferOp<>(httpEmitter,
+        //                        ParameterValidation.positive(streamConfig.bufferSize, "size"),
+        //                        false,
+        //                        x -> {
+        //                            x.nack(new BackPressureFailure("buffer overflow"));
+        //                            System.out.println("throwing out " + x);
+        // do nothing
+        //                        }));
+        //        multiOverflow.buffer(streamConfig.bufferSize);
+
+        HttpProcessorBundle previousProcessor = processors.put(key, bundle);
         if (previousProcessor != null) {
             throw new IllegalStateException("Duplicate incoming streams defined for path " + streamConfig.path
                     + " and method " + streamConfig.method);
@@ -101,5 +157,27 @@ public class ReactiveHttpHandlerBean {
 
     private String key(String path, HttpMethod method) {
         return String.format("%s:%s", path, method);
+    }
+
+    public Multi<HttpMessage<?>> getProcessor(String path, HttpMethod method) {
+        return processors.get(key(path, method)).processor;
+    }
+
+    private static class HttpProcessorBundle {
+        private final StrictQueueSizeGuard guard;
+        private Multi<HttpMessage<?>> processor; // effectively final
+        private MultiEmitter<? super HttpMessage<?>> emitter; // effectively final
+
+        private HttpProcessorBundle(StrictQueueSizeGuard guard) {
+            this.guard = guard;
+        }
+
+        public void setProcessor(Multi<HttpMessage<?>> processor) {
+            this.processor = processor;
+        }
+
+        public void setEmitter(MultiEmitter<? super HttpMessage<?>> emitter) {
+            this.emitter = emitter;
+        }
     }
 }

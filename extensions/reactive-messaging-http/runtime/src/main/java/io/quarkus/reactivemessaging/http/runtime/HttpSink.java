@@ -1,8 +1,10 @@
 package io.quarkus.reactivemessaging.http.runtime;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.eclipse.microprofile.reactive.messaging.Message;
 import org.eclipse.microprofile.reactive.streams.operators.ReactiveStreams;
@@ -11,6 +13,7 @@ import org.eclipse.microprofile.reactive.streams.operators.SubscriberBuilder;
 import io.quarkus.reactivemessaging.http.runtime.serializers.Serializer;
 import io.quarkus.reactivemessaging.http.runtime.serializers.SerializerFactoryBase;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.groups.UniRetry;
 import io.vertx.core.MultiMap;
 import io.vertx.core.Vertx;
 import io.vertx.mutiny.core.buffer.Buffer;
@@ -31,6 +34,9 @@ class HttpSink {
 
     HttpSink(Vertx vertx, String method, String url,
             String serializerName,
+            int maxAttempts,
+            double jitter,
+            Optional<Duration> delay,
             SerializerFactoryBase serializerFactory) {
         this.method = method;
         this.url = url;
@@ -39,11 +45,25 @@ class HttpSink {
 
         client = WebClient.create(io.vertx.mutiny.core.Vertx.newInstance(vertx));
         subscriber = ReactiveStreams.<Message<?>> builder()
-                .flatMapCompletionStage(m -> send(m)
-                        .onItem().transformToUni(v -> Uni.createFrom().completionStage(m.ack().thenApply(x -> m)))
-                        // mstodo: should we have a nack somewhere?
-                        .subscribeAsCompletionStage())
-                .ignore();
+                .flatMapCompletionStage(m -> {
+                    Uni<Void> send = send(m);
+                    if (maxAttempts > 1) {
+                        UniRetry<Void> retry = send // mstodo simplify the above if
+                                .onFailure().retry();
+                        if (delay.isPresent()) {
+                            retry = retry.withBackOff(delay.get()).withJitter(jitter);
+                        }
+                        send = retry.atMost(maxAttempts);
+                    }
+                    return send
+                            .onItemOrFailure().transformToUni((result, error) -> {
+                                if (error != null) {
+                                    return Uni.createFrom().completionStage(m.nack(error).thenApply(x -> m));
+                                }
+                                return Uni.createFrom().completionStage(m.ack().thenApply(x -> m));
+                            })
+                            .subscribeAsCompletionStage();
+                }).ignore();
     }
 
     SubscriberBuilder<Message<?>, Void> sink() {
@@ -52,11 +72,11 @@ class HttpSink {
 
     // mstodo non-blocking serialization?
     private Uni<Void> send(Message<?> message) {
+        System.out.println("in send for " + message.getPayload()); // mstodo drop it
         HttpRequest<?> request = toHttpRequest(message);
         Buffer payload = serialize(message.getPayload());
         return Uni.createFrom().item(payload)
-                .onItem().transformToUni(buffer -> invoke(request, buffer))
-                .onItem().transformToUni(x -> Uni.createFrom().completionStage(message.ack()));
+                .onItem().transformToUni(buffer -> invoke(request, buffer));
     }
 
     private <T> Buffer serialize(T payload) {
@@ -72,6 +92,7 @@ class HttpSink {
                     if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
                         return null;
                     } else {
+                        System.out.println("wrong status code: " + resp.statusCode()); // mstodo remove
                         throw new RuntimeException("HTTP request returned an invalid status: " + resp.statusCode());
                     }
                 });

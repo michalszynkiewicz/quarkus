@@ -2,8 +2,17 @@ package io.quarkus.reactivemessaging.http.source;
 
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.fail;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 import javax.inject.Inject;
 
@@ -16,6 +25,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import io.quarkus.reactivemessaging.http.runtime.HttpMessage;
 import io.quarkus.reactivemessaging.http.source.app.Consumer;
 import io.quarkus.test.QuarkusUnitTest;
+import io.restassured.response.ValidatableResponse;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
@@ -32,9 +42,7 @@ class HttpSourceTest {
 
     @AfterEach
     void setUp() {
-        consumer.getPostMessages().clear();
-        consumer.getPutMessages().clear();
-        consumer.getPayloads().clear();
+        consumer.clear();
     }
 
     @Test
@@ -54,7 +62,7 @@ class HttpSourceTest {
 
         List<HttpMessage<?>> messages = consumer.getPostMessages();
         assertThat(messages).hasSize(1);
-        HttpMessage message = messages.get(0);
+        HttpMessage<?> message = messages.get(0);
         assertThat(message.getPayload().toString()).isEqualTo("some-text");
         assertThat(message.getHttpHeaders().get(headerName)).isEqualTo(headerValue);
     }
@@ -68,49 +76,25 @@ class HttpSourceTest {
                 .put("/my-http-source")
         .then()
                 .statusCode(202);
-
-        given()
-                .body("some-text")
-        .when()
-                .post("/my-http-source")
-        .then()
-                .statusCode(202);
         // @formatter:on
+
+        send("some-text", "/my-http-source");
         assertThat(consumer.getPostMessages()).hasSize(1);
         assertThat(consumer.getPutMessages()).hasSize(1);
     }
 
     @Test
     void shouldConsumeHttpTwice() {
-        // @formatter:off
-        given()
-                .body("some-text")
-        .when()
-                .post("/my-http-source")
-        .then()
-                .statusCode(202);
+        send("some-text", "/my-http-source");
 
-        given()
-                .body("some-text")
-        .when()
-                .post("/my-http-source")
-        .then()
-                .statusCode(202);
-        // @formatter:on
+        send("some-text", "/my-http-source");
         List<HttpMessage<?>> messages = consumer.getPostMessages();
         assertThat(messages).hasSize(2);
     }
 
     @Test
     void shouldConsumeJsonObject() {
-        // @formatter:off
-        given()
-                .body("{\"some\": \"json\"}")
-        .when()
-                .post("/json-http-source")
-        .then()
-                .statusCode(202);
-        // @formatter:on
+        send("{\"some\": \"json\"}", "/json-http-source");
 
         List<?> payloads = consumer.getPayloads();
         assertThat(payloads).hasSize(1);
@@ -121,15 +105,7 @@ class HttpSourceTest {
 
     @Test
     void shouldConsumeJsonArray() {
-        // mstodo proper header support
-        // @formatter:off
-        given()
-                .body("[{\"some\": \"json\"}]")
-        .when()
-                .post("/jsonarray-http-source")
-        .then()
-                .statusCode(202);
-        // @formatter:on
+        send("[{\"some\": \"json\"}]", "/jsonarray-http-source");
 
         List<?> payloads = consumer.getPayloads();
         assertThat(payloads).hasSize(1);
@@ -140,19 +116,82 @@ class HttpSourceTest {
 
     @Test
     void shouldConsumeString() {
-        // @formatter:off
-        given()
-                .body("someString")
-        .when()
-                .post("/string-http-source")
-        .then()
-                .statusCode(202);
-        // @formatter:on
+        send("someString", "/string-http-source");
 
         List<?> payloads = consumer.getPayloads();
         assertThat(payloads).hasSize(1);
         assertThat(payloads.get(0)).isInstanceOf(String.class);
         String payload = (String) payloads.get(0);
         assertThat(payload).isEqualTo("someString");
+    }
+
+    @Test
+    void shouldBuffer13MessagesIfConfigured() throws InterruptedException {
+        // 1 message should start being consumed, 13 should be buffered, the rest should respond with 503
+        consumer.pause();
+        List<Future<Integer>> sendStates = new ArrayList<>();
+        ExecutorService executorService = Executors.newFixedThreadPool(17);
+        for (int i = 0; i < 17; i++) {
+            sendStates.add(executorService.submit(() -> sendAndGetStatus("some-text", "/my-http-source")));
+        }
+        System.out.println("initiated send for all messages waiting for failures");
+
+        //         await a 503
+        // mstodo weird but it fails
+        await("assert 3 failures")
+                .atMost(5, TimeUnit.SECONDS)
+                .until(() -> countCodes(sendStates, 503), Predicate.isEqual(3));
+        //
+        //        Thread.sleep(4000L); // mstodo remove
+
+        System.out.println("wait for failures done");
+        consumer.resume();
+        System.out.println("consumer resume called");
+
+        // mstodo remove
+        Thread.sleep(20000L); // mstodo remove
+        System.out.println("after 20s sleep");
+        System.out.flush();
+
+        int failures = 0;
+
+        System.out.printf("202s: %d\n", countCodes(sendStates, 202));
+        System.out.printf("503: %d\n", countCodes(sendStates, 503));
+
+        //        System.out.printf("Successes: %d, failures: %d", successes, 17 - successes);
+
+        // mstodo end
+        assertThat(consumer.getPostMessages()).hasSize(14);
+    }
+
+    private long countCodes(List<Future<Integer>> sendStates, int code) {
+        List<Integer> statusCodes = new ArrayList<>();
+        for (Future<Integer> sendState : sendStates) {
+            if (sendState.isDone()) {
+                try {
+                    statusCodes.add(sendState.get());
+                } catch (InterruptedException | ExecutionException e) {
+                    fail("checking the status code for http connection failed unexpectedly", e);
+                }
+            } else {
+                System.out.println("not done");
+            }
+        }
+
+        return statusCodes.stream().filter(it -> it == code).count();
+    }
+
+    static int sendAndGetStatus(String body, String path) {
+        return sendAndGetResponse(body, path).extract().statusCode();
+    }
+
+    static ValidatableResponse sendAndGetResponse(String body, String path) {
+        return given().body(body)
+                .when().post(path)
+                .then();
+    }
+
+    static void send(String body, String path) {
+        sendAndGetResponse(body, path).statusCode(202);
     }
 }

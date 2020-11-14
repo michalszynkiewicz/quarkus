@@ -23,6 +23,8 @@ import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.WebSocket;
 import io.vertx.core.http.WebSocketConnectOptions;
 
+// mstodo jitter etc
+// mstodo keeping the connection open
 class WebsocketSink {
     private static final String WSS = "wss";
     private static final List<String> supportedSchemes = asList("ws", WSS);
