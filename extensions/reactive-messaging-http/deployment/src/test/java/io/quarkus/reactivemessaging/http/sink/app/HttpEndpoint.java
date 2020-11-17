@@ -20,6 +20,7 @@ public class HttpEndpoint {
     private List<Request> receivedRequests = new ArrayList<>();
     private AtomicInteger initialFailures = new AtomicInteger(0);
     private ReadWriteLock consumptionLock = new ReentrantReadWriteLock();
+    // mstodo: try to get rid of guard
 
     @Route(path = "/recorder", methods = HttpMethod.POST)
     void handlePost(RoutingContext ctx) throws InterruptedException {

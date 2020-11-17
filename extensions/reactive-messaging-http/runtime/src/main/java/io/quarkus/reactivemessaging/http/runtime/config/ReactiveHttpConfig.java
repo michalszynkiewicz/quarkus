@@ -91,7 +91,7 @@ public class ReactiveHttpConfig {
                         QuarkusHttpConnector.NAME);
             }
             if (connectorName != null) {
-                String serializer = getConfigProperty(OUT_KEY, connectorName, "serializer", null);
+                String serializer = getConfigProperty(OUT_KEY, connectorName, "serializer", null, String.class);
                 if (serializer != null) {
                     result.add(serializer);
                 }

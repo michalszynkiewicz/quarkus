@@ -1,26 +1,25 @@
 package io.quarkus.reactivemessaging.http.source.app;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.Semaphore;
 
 import javax.enterprise.context.ApplicationScoped;
+import javax.inject.Inject;
 
 import org.eclipse.microprofile.reactive.messaging.Acknowledgment;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.eclipse.microprofile.reactive.messaging.Message;
-import org.jboss.logging.Logger;
 
 import io.quarkus.reactivemessaging.http.runtime.HttpMessage;
+import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 @ApplicationScoped
 public class Consumer {
-    private static final Logger log = Logger.getLogger(Consumer.class);
-
     private static final CompletableFuture<Void> COMPLETED;
 
     static {
@@ -32,19 +31,34 @@ public class Consumer {
     private final List<HttpMessage<?>> putMessages = new ArrayList<>();
     private final List<Object> payloads = new ArrayList<>();
 
-    private Semaphore semaphore = new Semaphore(1000);
+    private final List<Long> timers = Collections.synchronizedList(new ArrayList<>());
 
-    // mstodo why do we need acknowledgements here suddenly?
+    @Inject
+    Vertx vertx;
+
+    volatile boolean ready = true;
+
     @Incoming("post-http-source")
-    //    @Acknowledgment(Acknowledgment.Strategy.POST_PROCESSING)
     public CompletionStage<Void> process(HttpMessage<?> message) throws InterruptedException {
-        log.info("--waiting for processing of " + message.getPayload().toString());
-        semaphore.acquire();
-        log.info("--processed " + message.getPayload().toString());
-        postMessages.add(message);
-        message.ack();
-        return COMPLETED;
-        //        return COMPLETED;
+        CompletableFuture<Void> result = new CompletableFuture<>();
+
+        triggerWhenReady(() -> {
+            result.complete(null);
+            postMessages.add(message);
+            message.ack();
+        }, System.currentTimeMillis(), 10000);
+        return result;
+    }
+
+    private void triggerWhenReady(Runnable action, long startTime, long maxTime) {
+        if (System.currentTimeMillis() - startTime >= maxTime) {
+            throw new RuntimeException("the consumer not released in " + maxTime + " ms");
+        }
+        if (!ready) {
+            timers.add(vertx.setTimer(100, timer -> triggerWhenReady(action, startTime, maxTime)));
+        } else {
+            action.run();
+        }
     }
 
     @Incoming("put-http-source")
@@ -86,19 +100,20 @@ public class Consumer {
     }
 
     public void pause() {
-        semaphore.drainPermits();
+        ready = false;
     }
 
     public void resume() {
-        semaphore.release(1000);
-        System.out.println("Semaphore released");
-        System.out.flush();
+        ready = true;
     }
 
     public void clear() {
         postMessages.clear();
         putMessages.clear();
         payloads.clear();
-        resume();
+        for (Long timer : timers) {
+            vertx.cancelTimer(timer);
+        }
+        ready = true;
     }
 }

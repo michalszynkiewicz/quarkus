@@ -37,36 +37,19 @@ public class HttpMessage<T> implements Message<T> {
         return payload;
     }
 
+    // mstodo remove?
     public MultiMap getHttpHeaders() {
         return httpHeaders;
     }
 
     @Override
-    public CompletionStage<Void> ack() {
-        System.out.println("in the ack");
-        return getAck().get();
-    }
-
-    @Override
     public Supplier<CompletionStage<Void>> getAck() {
-        return () -> CompletableFuture.runAsync(() -> {
-            System.out.println("success, will run finalizer!"); // mstodo remove
-            successHandler.run();
-            System.out.println("finalizer executed, responding!"); // mstodo remove
-            //            try {
-            //                //                response.setStatusCode(202).end(); // mstodo can it be here?
-            //            } catch (Throwable any) {
-            //                System.out.println("failed to send back the status code");
-            //                any.printStackTrace();
-            //            }
-            System.out.println("response sent!"); // mstodo remove
-        });
+        return () -> CompletableFuture.runAsync(successHandler::run);
     }
 
     @Override
     public Function<Throwable, CompletionStage<Void>> getNack() {
         return error -> CompletableFuture.runAsync(() -> {
-            successHandler.run();
             failureHandler.accept(error);
         });
     }

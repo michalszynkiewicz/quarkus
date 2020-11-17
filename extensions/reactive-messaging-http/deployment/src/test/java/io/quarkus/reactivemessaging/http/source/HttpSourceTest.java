@@ -2,6 +2,7 @@ package io.quarkus.reactivemessaging.http.source;
 
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.util.Arrays.asList;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -136,59 +137,32 @@ class HttpSourceTest {
         for (int i = 0; i < 17; i++) {
             sendStates.add(executorService.submit(() -> sendAndGetStatus("some-text", "/my-http-source")));
         }
-        System.out.println("initiated send for all messages waiting for failures");
 
-        //         await a 503
-        // mstodo weird but it fails
         await("assert 3 failures")
                 .atMost(5, TimeUnit.SECONDS)
-                .until(() -> countCodes(sendStates, 503), Predicate.isEqual(3));
-        //
-        //        Thread.sleep(4000L); // mstodo remove
+                .until(() -> countCodes(sendStates, 503), Predicate.isEqual(3L));
 
-        System.out.println("wait for failures done");
         consumer.resume();
-        System.out.println("consumer resume called");
 
-        // mstodo remove
-        Thread.sleep(20000L); // mstodo remove
-        System.out.println("after 20s sleep");
-        System.out.flush();
+        await("all processing finished")
+                .atMost(5, TimeUnit.SECONDS)
+                .until(() -> countCodes(sendStates, 503, 202), Predicate.isEqual(17L));
 
-        int failures = 0;
-
-        System.out.printf("202s: %d\n", countCodes(sendStates, 202));
-        System.out.printf("503: %d\n", countCodes(sendStates, 503));
-
-        //        System.out.printf("Successes: %d, failures: %d", successes, 17 - successes);
-
-        // mstodo end
         assertThat(consumer.getPostMessages()).hasSize(14);
     }
 
-    private long countCodes(List<Future<Integer>> sendStates, int code) {
+    private long countCodes(List<Future<Integer>> sendStates, int... codes) {
         List<Integer> statusCodes = new ArrayList<>();
         for (Future<Integer> sendState : sendStates) {
             if (sendState.isDone()) {
                 try {
-                    Integer state = sendState.get();
-                    if (state < 300) {
-                        System.out.print("+");
-                    } else {
-                        System.out.print("X");
-                    }
-                    statusCodes.add(state);
+                    statusCodes.add(sendState.get());
                 } catch (InterruptedException | ExecutionException e) {
                     fail("checking the status code for http connection failed unexpectedly", e);
                 }
-            } else {
-                System.out.print("-");
             }
         }
-        long count = statusCodes.stream().filter(it -> it == code).count();
-        System.out.printf("\t%d's: %d", code, count);
-
-        return count;
+        return statusCodes.stream().filter(asList(codes)::contains).count();
     }
 
     static int sendAndGetStatus(String body, String path) {
