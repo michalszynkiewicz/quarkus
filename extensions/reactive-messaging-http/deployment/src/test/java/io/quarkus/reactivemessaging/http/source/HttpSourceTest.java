@@ -42,6 +42,8 @@ class HttpSourceTest {
 
     @AfterEach
     void setUp() {
+        System.out.println("clean up");
+        System.out.flush();
         consumer.clear();
     }
 
@@ -169,16 +171,24 @@ class HttpSourceTest {
         for (Future<Integer> sendState : sendStates) {
             if (sendState.isDone()) {
                 try {
-                    statusCodes.add(sendState.get());
+                    Integer state = sendState.get();
+                    if (state < 300) {
+                        System.out.print("+");
+                    } else {
+                        System.out.print("X");
+                    }
+                    statusCodes.add(state);
                 } catch (InterruptedException | ExecutionException e) {
                     fail("checking the status code for http connection failed unexpectedly", e);
                 }
             } else {
-                System.out.println("not done");
+                System.out.print("-");
             }
         }
+        long count = statusCodes.stream().filter(it -> it == code).count();
+        System.out.printf("\t%d's: %d", code, count);
 
-        return statusCodes.stream().filter(it -> it == code).count();
+        return count;
     }
 
     static int sendAndGetStatus(String body, String path) {
