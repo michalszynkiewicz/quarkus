@@ -23,6 +23,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
+import io.quarkus.reactivemessaging.VertxFriendlyLock;
 import io.quarkus.reactivemessaging.http.runtime.HttpMessage;
 import io.quarkus.reactivemessaging.http.source.app.Consumer;
 import io.quarkus.test.QuarkusUnitTest;
@@ -35,7 +36,7 @@ class HttpSourceTest {
     @RegisterExtension
     static final QuarkusUnitTest config = new QuarkusUnitTest()
             .setArchiveProducer(() -> ShrinkWrap.create(JavaArchive.class)
-                    .addClasses(Consumer.class))
+                    .addClasses(Consumer.class, VertxFriendlyLock.class))
             .withConfigurationResource("http-source-test-application.properties");
 
     @Inject
@@ -43,8 +44,6 @@ class HttpSourceTest {
 
     @AfterEach
     void setUp() {
-        System.out.println("clean up");
-        System.out.flush();
         consumer.clear();
     }
 
@@ -145,7 +144,7 @@ class HttpSourceTest {
         consumer.resume();
 
         await("all processing finished")
-                .atMost(5, TimeUnit.SECONDS)
+                .atMost(50, TimeUnit.SECONDS)
                 .until(() -> countCodes(sendStates, 503, 202), Predicate.isEqual(17L));
 
         assertThat(consumer.getPostMessages()).hasSize(14);

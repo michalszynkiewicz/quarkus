@@ -79,11 +79,7 @@ public class ReactiveHttpHandlerBean {
         Bundle httpProcessorBundle = processors.get(key);
         if (httpProcessorBundle != null) {
             MultiEmitter<? super HttpMessage<?>> emitter = httpProcessorBundle.emitter;
-            // mstodo processor.onNext should throw exception on overflow and we should handle it  - ???
             StrictQueueSizeGuard guard = httpProcessorBundle.guard;
-            // mstodo two strategies
-            // mstodo 1. synchronous - 202/503 after the message is processed - keeps the event loop blocked??
-            // mstodo 2. asynchronous - 202/503 righ away - allows better buffering
             HttpMessage<Buffer> message = new HttpMessage<>(event.getBody(), event.request().headers(),
                     () -> {
                         event.response().setStatusCode(202).end();

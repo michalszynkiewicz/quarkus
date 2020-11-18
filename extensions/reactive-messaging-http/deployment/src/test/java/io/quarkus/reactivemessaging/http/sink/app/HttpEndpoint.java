@@ -1,41 +1,35 @@
 package io.quarkus.reactivemessaging.http.sink.app;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import javax.enterprise.context.ApplicationScoped;
-
-import io.quarkus.vertx.web.Route;
-import io.vertx.core.http.HttpMethod;
-import io.vertx.ext.web.RoutingContext;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
+import javax.ws.rs.core.Response;
 
 @ApplicationScoped
+@Path("/recorder")
 // mstodo change to JAX-RS, reactive routes may get dropped soon
 public class HttpEndpoint {
     private List<Request> receivedRequests = new ArrayList<>();
     private AtomicInteger initialFailures = new AtomicInteger(0);
     private ReadWriteLock consumptionLock = new ReentrantReadWriteLock();
-    // mstodo: try to get rid of guard
 
-    @Route(path = "/recorder", methods = HttpMethod.POST)
-    void handlePost(RoutingContext ctx) throws InterruptedException {
-        System.out.println("got an http message to consume");
+    @POST
+    public Response handlePost(String body) {
+        System.out.println("in handle post for " + body);
         consumptionLock.readLock().lock();
         try {
-            System.out.println("in da lock"); // mstodo remove printlns from here and emitter with backpressure
             if (initialFailures.getAndDecrement() > 0) {
-                ctx.response().setStatusCode(500).end("forced failure");
-                return;
+                return Response.status(500).entity("forced failure").build();
             }
-            receivedRequests.add(new Request(ctx.getBodyAsString(), ctx.request().headers().entries()));
-            ctx.response().setStatusCode(200).end("bye");
+            receivedRequests.add(new Request(body));
+            return Response.ok().entity("bye").build();
         } finally {
-            System.out.println("releasing the lock"); // mstodo remove printlns from here and emitter with backpressure
             consumptionLock.readLock().unlock();
         }
     }
@@ -46,22 +40,13 @@ public class HttpEndpoint {
 
     public static class Request {
         String body;
-        Map<String, List<String>> headers;
 
-        public Request(String body, List<Map.Entry<String, String>> headers) {
+        public Request(String body) {
             this.body = body;
-            this.headers = new HashMap<>();
-            for (Map.Entry<String, String> header : headers) {
-                this.headers.computeIfAbsent(header.getKey(), whatever -> new ArrayList<>()).add(header.getValue());
-            }
         }
 
         public String getBody() {
             return body;
-        }
-
-        public Map<String, List<String>> getHeaders() {
-            return headers;
         }
     }
 

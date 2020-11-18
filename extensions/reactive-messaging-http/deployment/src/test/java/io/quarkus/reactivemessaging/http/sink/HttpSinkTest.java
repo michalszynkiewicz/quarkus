@@ -74,7 +74,6 @@ class HttpSinkTest {
         String body = httpEndpoint.getReceivedRequests().get(0).getBody();
         assertThat(body).isEqualTo("SOME-TEXT");
     }
-    // mstodo test for emitter returned completion stage finished
 
     // mstodo add content-type headers from serializer?
 
@@ -100,7 +99,7 @@ class HttpSinkTest {
     @Test
     void shouldRetry() throws InterruptedException {
         httpEndpoint.setInitialFailures(1);
-        emit(new Dto("fooo"));
+        emit(repeater::retryingEmitMessage, new Dto("fooo"));
 
         List<HttpEndpoint.Request> requests = httpEndpoint.getReceivedRequests();
         assertThat(requests).hasSize(1);
@@ -110,12 +109,14 @@ class HttpSinkTest {
 
     @Test
     void shouldNotRetryByDefault() throws InterruptedException {
-        emit(repeater::retryingEmitMessage, new Dto("fooo"));
+        httpEndpoint.setInitialFailures(1);
+        emit(new Dto("fooo"));
+        emit(new Dto("fooo2"));
 
         List<HttpEndpoint.Request> requests = httpEndpoint.getReceivedRequests();
         assertThat(requests).hasSize(1);
         String body = requests.get(0).getBody();
-        assertThat(new JsonObject(body)).isEqualTo(new JsonObject("{\"field\": \"fooo\"}"));
+        assertThat(new JsonObject(body)).isEqualTo(new JsonObject("{\"field\": \"fooo2\"}"));
     }
 
     private void emit(Object payload) throws InterruptedException {

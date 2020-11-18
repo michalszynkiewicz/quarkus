@@ -1,6 +1,7 @@
 package io.quarkus.reactivemessaging.http.sink.app;
 
 import java.util.concurrent.CompletionStage;
+import java.util.function.Supplier;
 
 import javax.enterprise.context.ApplicationScoped;
 
@@ -19,6 +20,7 @@ import io.vertx.core.buffer.Buffer;
 public class HttpEmitter {
     private static final Logger log = Logger.getLogger(HttpEmitter.class);
 
+    // mstodo unused
     public static final String HEADER_NAME = "http-header-from-repeater";
     public static final String HEADER_VALUE = "headerValue";
 
@@ -28,7 +30,12 @@ public class HttpEmitter {
         return new Message<String>() {
             @Override
             public String getPayload() {
-                return message.toString();
+                return message.getPayload().toString();
+            }
+
+            @Override
+            public Supplier<CompletionStage<Void>> getAck() {
+                return message::ack;
             }
         };
     }

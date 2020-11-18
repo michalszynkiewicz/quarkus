@@ -22,17 +22,21 @@ public class WsRepeater {
     @Incoming("post-http-source")
     @Outgoing("my-ws-sink")
     WebsocketMessage<?> passThrough(HttpMessage message) {
-        switch (message.getPayload().toString()) {
-            case BUFFER:
-                return new WebsocketMessage<>(Buffer.buffer("{\"foo\": \"bar\"}"));
-            case JSON_OBJECT:
-                return new WebsocketMessage<>(new JsonObject().put("jsonFoo", "jsonBar"));
-            case JSON_ARRAY:
-                return new WebsocketMessage<>(new JsonArray().add(new JsonObject().put("arrFoo", "arrBar")));
-            case STRING:
-                return new WebsocketMessage<>("someText");
-            default:
-                throw new IllegalArgumentException("Unexpected payload: " + message.getPayload().toString());
+        try {
+            switch (message.getPayload().toString()) {
+                case BUFFER:
+                    return new WebsocketMessage<>(Buffer.buffer("{\"foo\": \"bar\"}"));
+                case JSON_OBJECT:
+                    return new WebsocketMessage<>(new JsonObject().put("jsonFoo", "jsonBar"));
+                case JSON_ARRAY:
+                    return new WebsocketMessage<>(new JsonArray().add(new JsonObject().put("arrFoo", "arrBar")));
+                case STRING:
+                    return new WebsocketMessage<>("someText");
+                default:
+                    throw new IllegalArgumentException("Unexpected payload: " + message.getPayload().toString());
+            }
+        } finally {
+            message.ack();
         }
     }
 }

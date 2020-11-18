@@ -1,7 +1,6 @@
 package io.quarkus.reactivemessaging.http.source.app;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -13,6 +12,7 @@ import org.eclipse.microprofile.reactive.messaging.Acknowledgment;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.eclipse.microprofile.reactive.messaging.Message;
 
+import io.quarkus.reactivemessaging.VertxFriendlyLock;
 import io.quarkus.reactivemessaging.http.runtime.HttpMessage;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonArray;
@@ -31,34 +31,23 @@ public class Consumer {
     private final List<HttpMessage<?>> putMessages = new ArrayList<>();
     private final List<Object> payloads = new ArrayList<>();
 
-    private final List<Long> timers = Collections.synchronizedList(new ArrayList<>());
+    VertxFriendlyLock lock;
 
     @Inject
-    Vertx vertx;
-
-    volatile boolean ready = true;
+    Consumer(Vertx vertx) {
+        lock = new VertxFriendlyLock(vertx);
+    }
 
     @Incoming("post-http-source")
-    public CompletionStage<Void> process(HttpMessage<?> message) throws InterruptedException {
+    public CompletionStage<Void> process(HttpMessage<?> message) {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
-        triggerWhenReady(() -> {
+        lock.triggerWhenUnlocked(() -> {
             result.complete(null);
             postMessages.add(message);
             message.ack();
-        }, System.currentTimeMillis(), 10000);
+        }, 10000);
         return result;
-    }
-
-    private void triggerWhenReady(Runnable action, long startTime, long maxTime) {
-        if (System.currentTimeMillis() - startTime >= maxTime) {
-            throw new RuntimeException("the consumer not released in " + maxTime + " ms");
-        }
-        if (!ready) {
-            timers.add(vertx.setTimer(100, timer -> triggerWhenReady(action, startTime, maxTime)));
-        } else {
-            action.run();
-        }
     }
 
     @Incoming("put-http-source")
@@ -100,20 +89,17 @@ public class Consumer {
     }
 
     public void pause() {
-        ready = false;
+        lock.lock();
     }
 
     public void resume() {
-        ready = true;
+        lock.unlock();
     }
 
     public void clear() {
         postMessages.clear();
         putMessages.clear();
         payloads.clear();
-        for (Long timer : timers) {
-            vertx.cancelTimer(timer);
-        }
-        ready = true;
+        lock.reset();
     }
 }

@@ -93,6 +93,7 @@ class HttpSink {
                         return null;
                     } else {
                         System.out.println("wrong status code: " + resp.statusCode()); // mstodo remove
+                        System.out.println("response: " + resp.bodyAsString()); // mstodo remove
                         throw new RuntimeException("HTTP request returned an invalid status: " + resp.statusCode());
                     }
                 });
