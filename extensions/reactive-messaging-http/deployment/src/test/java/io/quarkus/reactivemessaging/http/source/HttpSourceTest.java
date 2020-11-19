@@ -155,12 +155,17 @@ class HttpSourceTest {
         for (Future<Integer> sendState : sendStates) {
             if (sendState.isDone()) {
                 try {
-                    statusCodes.add(sendState.get());
+                    Integer code = sendState.get(); // mstodo remove printlns
+                    System.out.print(code < 300 ? "+" : "X");
+                    statusCodes.add(code);
                 } catch (InterruptedException | ExecutionException e) {
                     fail("checking the status code for http connection failed unexpectedly", e);
                 }
+            } else {
+                System.out.print("?");
             }
         }
+        System.out.println();
         return statusCodes.stream().filter(asList(codes)::contains).count();
     }
 

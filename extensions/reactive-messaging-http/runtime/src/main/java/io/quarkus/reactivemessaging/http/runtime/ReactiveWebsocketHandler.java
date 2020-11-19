@@ -4,9 +4,9 @@ import io.vertx.core.Handler;
 import io.vertx.ext.web.RoutingContext;
 
 class ReactiveWebsocketHandler implements Handler<RoutingContext> {
-    private final ReactiveHttpHandlerBean handler;
+    private final ReactiveWebsocketHandlerBean handler;
 
-    ReactiveWebsocketHandler(ReactiveHttpHandlerBean handler) {
+    ReactiveWebsocketHandler(ReactiveWebsocketHandlerBean handler) {
         this.handler = handler;
     }
 

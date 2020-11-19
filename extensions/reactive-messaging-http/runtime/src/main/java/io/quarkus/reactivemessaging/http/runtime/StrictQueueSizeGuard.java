@@ -11,6 +11,8 @@ class StrictQueueSizeGuard {
         this.queueSize = queueSize;
     }
 
+    // mstodo this should be done before the message processing is started!!!
+    // mstodo otherwise we only allow queueSize messages to be processed, not very reactive ;)
     void dequeue() {
         enqueued.decrementAndGet();
     }

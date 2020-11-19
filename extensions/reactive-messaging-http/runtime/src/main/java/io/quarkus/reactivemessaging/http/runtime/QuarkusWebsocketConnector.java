@@ -17,18 +17,19 @@ import org.eclipse.microprofile.reactive.streams.operators.ReactiveStreams;
 import org.eclipse.microprofile.reactive.streams.operators.SubscriberBuilder;
 
 import io.quarkus.reactivemessaging.http.runtime.serializers.SerializerFactoryBase;
-import io.reactivex.processors.BehaviorProcessor;
+import io.smallrye.mutiny.Multi;
 import io.smallrye.reactive.messaging.annotations.ConnectorAttribute;
 import io.vertx.core.Vertx;
 
 @Connector(QuarkusWebsocketConnector.NAME)
 @ConnectorAttribute(name = "path", type = "string", direction = INCOMING, description = "The path of the endpoint", mandatory = true)
+@ConnectorAttribute(name = "buffer-size", type = "string", direction = INCOMING, description = "Websocket endpoint buffers messages if a consumer is not able to keep up. This setting specifies the size of the buffer.", defaultValue = QuarkusHttpConnector.DEFAULT_SOURCE_BUFFER_STR)
 @ApplicationScoped
 public class QuarkusWebsocketConnector implements IncomingConnectorFactory, OutgoingConnectorFactory {
     public static final String NAME = "quarkus-websocket";
 
     @Inject
-    ReactiveHttpHandlerBean handlerBean;
+    ReactiveWebsocketHandlerBean handlerBean;
 
     @Inject
     SerializerFactoryBase serializerFactory;
@@ -40,7 +41,7 @@ public class QuarkusWebsocketConnector implements IncomingConnectorFactory, Outg
     public PublisherBuilder<WebsocketMessage<?>> getPublisherBuilder(Config config) {
         String path = getRequiredAttribute(config, "path", String.class);
 
-        BehaviorProcessor<WebsocketMessage<?>> processor = handlerBean.getWebsocketProcessor(path);
+        Multi<WebsocketMessage<?>> processor = handlerBean.getProcessor(path);
         return ReactiveStreams.fromPublisher(processor);
     }
 

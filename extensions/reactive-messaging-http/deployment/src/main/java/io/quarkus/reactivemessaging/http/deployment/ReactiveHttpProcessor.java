@@ -22,6 +22,7 @@ import io.quarkus.reactivemessaging.http.runtime.QuarkusHttpConnector;
 import io.quarkus.reactivemessaging.http.runtime.QuarkusWebsocketConnector;
 import io.quarkus.reactivemessaging.http.runtime.ReactiveHttpHandlerBean;
 import io.quarkus.reactivemessaging.http.runtime.ReactiveHttpRecorder;
+import io.quarkus.reactivemessaging.http.runtime.ReactiveWebsocketHandlerBean;
 import io.quarkus.reactivemessaging.http.runtime.config.HttpStreamConfig;
 import io.quarkus.reactivemessaging.http.runtime.config.ReactiveHttpConfig;
 import io.quarkus.reactivemessaging.http.runtime.config.WebsocketStreamConfig;
@@ -48,6 +49,7 @@ public class ReactiveHttpProcessor {
         beanProducer.produce(new AdditionalBeanBuildItem(QuarkusWebsocketConnector.class));
         beanProducer.produce(new AdditionalBeanBuildItem(ReactiveHttpConfig.class));
         beanProducer.produce(new AdditionalBeanBuildItem(ReactiveHttpHandlerBean.class));
+        beanProducer.produce(new AdditionalBeanBuildItem(ReactiveWebsocketHandlerBean.class));
 
         beanProducer.produce(new AdditionalBeanBuildItem(JsonArrayConverter.class));
         beanProducer.produce(new AdditionalBeanBuildItem(JsonObjectConverter.class));

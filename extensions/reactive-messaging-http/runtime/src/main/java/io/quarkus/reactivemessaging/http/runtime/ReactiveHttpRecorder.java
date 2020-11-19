@@ -10,7 +10,7 @@ import io.vertx.ext.web.handler.BodyHandler;
 public class ReactiveHttpRecorder {
 
     public Handler<RoutingContext> createWebsocketHandler() {
-        ReactiveHttpHandlerBean bean = Arc.container().instance(ReactiveHttpHandlerBean.class).get();
+        ReactiveWebsocketHandlerBean bean = Arc.container().instance(ReactiveWebsocketHandlerBean.class).get();
         return new ReactiveWebsocketHandler(bean);
     }
 

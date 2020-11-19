@@ -71,11 +71,7 @@ public class QuarkusHttpConnector implements IncomingConnectorFactory, OutgoingC
 
         Multi<HttpMessage<?>> processor = handlerBean.getProcessor(path, method);
 
-        //        return ReactiveStreams.fromPublisher(processor);
         return ReactiveStreams.fromPublisher(processor);
-        //        Multi.createFrom().emitter(emitter -> emitter.)
-        //        BehaviorProcessor<HttpMessage<?>> processor = handlerBean.getEmitter(path, method);
-        //        return ReactiveStreams.fromPublisher(processor.onBackpressureBuffer(bufferSize));
     }
 
     private HttpMethod getMethod(Config config) {

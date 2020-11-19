@@ -7,7 +7,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import org.eclipse.microprofile.reactive.messaging.Message;
-import org.jboss.logging.Logger;
 
 import io.vertx.core.MultiMap;
 
@@ -17,8 +16,6 @@ import io.vertx.core.MultiMap;
  * @param <T> payload type
  */
 public class HttpMessage<T> implements Message<T> {
-
-    private static final Logger log = Logger.getLogger(HttpMessage.class);
 
     private final T payload;
     private final MultiMap httpHeaders;

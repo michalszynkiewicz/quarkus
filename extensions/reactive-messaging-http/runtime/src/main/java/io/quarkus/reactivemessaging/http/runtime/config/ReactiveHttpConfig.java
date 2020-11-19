@@ -74,7 +74,9 @@ public class ReactiveHttpConfig {
 
             if (connectorName != null) {
                 String path = getConfigProperty(IN_KEY, connectorName, "path", String.class);
-                streamConfigs.add(new WebsocketStreamConfig(path));
+                int bufferSize = getConfigProperty(IN_KEY, connectorName, "buffer-size", DEFAULT_SOURCE_BUFFER,
+                        Integer.class) + 1;
+                streamConfigs.add(new WebsocketStreamConfig(path, bufferSize));
             }
         }
         return streamConfigs;
