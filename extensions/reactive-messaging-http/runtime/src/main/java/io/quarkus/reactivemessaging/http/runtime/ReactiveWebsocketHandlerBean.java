@@ -36,9 +36,7 @@ public class ReactiveWebsocketHandlerBean {
                 .forEach(this::addWebsocketProcessor);
     }
 
-    // mstodo use it
     void handleWebsocket(RoutingContext event) {
-        // mstodo them should have a different message
         String path = event.normalisedPath();
         Bundle<WebsocketMessage<?>> bundle = websocketProcessors.get(path);
         if (bundle != null) {
@@ -55,17 +53,18 @@ public class ReactiveWebsocketHandlerBean {
                                         if (guard.prepareToEmit()) {
                                             try {
                                                 emitter.emit(new WebsocketMessage<>(b, () -> {
-                                                    guard.dequeue();
                                                     serverWebSocket.write(Buffer.buffer("ACK"));
                                                 }, error -> {
-                                                    guard.dequeue();
                                                     log.error("Failed to process message.", error);
-                                                    serverWebSocket.write(Buffer.buffer("failed to process message")); // mstodo some error message for the client? exception mapper would be best...
+                                                    serverWebSocket.write(Buffer.buffer("Failed to process message"));
+                                                    // mstodo some error message for the client? exception mapper would be best...
                                                 }));
                                             } catch (Exception any) {
                                                 guard.dequeue();
                                                 log.error("Emitting message failed", any);
                                             }
+                                        } else {
+                                            serverWebSocket.write(Buffer.buffer("BUFFER_OVERFLOW"));
                                         }
                                     });
                         }
@@ -81,7 +80,8 @@ public class ReactiveWebsocketHandlerBean {
         Bundle<WebsocketMessage<?>> bundle = new Bundle<>(guard);
 
         Multi<WebsocketMessage<?>> processor = Multi.createFrom()
-                .<WebsocketMessage<?>> emitter(bundle::setEmitter, BackPressureStrategy.BUFFER).onOverflow().buffer();
+                .<WebsocketMessage<?>> emitter(bundle::setEmitter, BackPressureStrategy.BUFFER)
+                .onItem().invoke(guard::dequeue);
         bundle.setProcessor(processor);
 
         Bundle<WebsocketMessage<?>> previousProcessor = websocketProcessors.put(streamConfig.path, bundle);

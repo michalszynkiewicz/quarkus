@@ -2,7 +2,6 @@ package io.quarkus.reactivemessaging.http.runtime;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-// mstodo try replacing it with checking the `requested` value
 class StrictQueueSizeGuard {
     private final int queueSize;
     private final AtomicInteger enqueued = new AtomicInteger();
@@ -11,8 +10,6 @@ class StrictQueueSizeGuard {
         this.queueSize = queueSize;
     }
 
-    // mstodo this should be done before the message processing is started!!!
-    // mstodo otherwise we only allow queueSize messages to be processed, not very reactive ;)
     void dequeue() {
         enqueued.decrementAndGet();
     }

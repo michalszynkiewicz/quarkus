@@ -57,7 +57,7 @@ public class ReactiveHttpConfig {
                 String method = getConfigProperty(IN_KEY, connectorName, "method", String.class);
                 String path = getConfigProperty(IN_KEY, connectorName, "path", String.class);
                 int bufferSize = getConfigProperty(IN_KEY, connectorName, "buffer-size", DEFAULT_SOURCE_BUFFER,
-                        Integer.class) + 1;
+                        Integer.class);
                 streamConfigs.add(new HttpStreamConfig(path, method, connectorName, bufferSize));
             }
         }
@@ -75,7 +75,7 @@ public class ReactiveHttpConfig {
             if (connectorName != null) {
                 String path = getConfigProperty(IN_KEY, connectorName, "path", String.class);
                 int bufferSize = getConfigProperty(IN_KEY, connectorName, "buffer-size", DEFAULT_SOURCE_BUFFER,
-                        Integer.class) + 1;
+                        Integer.class);
                 streamConfigs.add(new WebsocketStreamConfig(path, bufferSize));
             }
         }

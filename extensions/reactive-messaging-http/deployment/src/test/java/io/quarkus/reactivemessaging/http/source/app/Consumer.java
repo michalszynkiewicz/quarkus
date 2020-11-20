@@ -43,9 +43,9 @@ public class Consumer {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
         lock.triggerWhenUnlocked(() -> {
-            result.complete(null);
             postMessages.add(message);
             message.ack();
+            result.complete(null);
         }, 10000);
         return result;
     }

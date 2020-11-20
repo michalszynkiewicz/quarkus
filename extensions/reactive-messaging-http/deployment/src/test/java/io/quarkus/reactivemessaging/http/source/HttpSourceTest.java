@@ -144,7 +144,7 @@ class HttpSourceTest {
         consumer.resume();
 
         await("all processing finished")
-                .atMost(50, TimeUnit.SECONDS)
+                .atMost(5, TimeUnit.SECONDS)
                 .until(() -> countCodes(sendStates, 503, 202), Predicate.isEqual(17L));
 
         assertThat(consumer.getPostMessages()).hasSize(14);
@@ -155,17 +155,12 @@ class HttpSourceTest {
         for (Future<Integer> sendState : sendStates) {
             if (sendState.isDone()) {
                 try {
-                    Integer code = sendState.get(); // mstodo remove printlns
-                    System.out.print(code < 300 ? "+" : "X");
-                    statusCodes.add(code);
+                    statusCodes.add(sendState.get());
                 } catch (InterruptedException | ExecutionException e) {
                     fail("checking the status code for http connection failed unexpectedly", e);
                 }
-            } else {
-                System.out.print("?");
             }
         }
-        System.out.println();
         return statusCodes.stream().filter(asList(codes)::contains).count();
     }
 

@@ -54,6 +54,6 @@ public class QuarkusWebsocketConnector implements IncomingConnectorFactory, Outg
 
     private <T> T getRequiredAttribute(Config config, String attributeName, Class<T> type) {
         return config.getOptionalValue(attributeName, type)
-                .orElseThrow(() -> new IllegalArgumentException("The '" + attributeName + "' must be set")); //mstodo better error message!!
+                .orElseThrow(() -> new IllegalArgumentException("'" + attributeName + "' must be set for a quarkus websocket connector"));
     }
 }

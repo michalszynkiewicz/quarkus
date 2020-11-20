@@ -19,7 +19,6 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.RoutingContext;
 
-// mstodo separate http from websocket
 @Singleton
 public class ReactiveHttpHandlerBean {
 
@@ -44,13 +43,11 @@ public class ReactiveHttpHandlerBean {
         if (httpProcessorBundle != null) {
             MultiEmitter<? super HttpMessage<?>> emitter = httpProcessorBundle.emitter;
             StrictQueueSizeGuard guard = httpProcessorBundle.guard;
-
             if (guard.prepareToEmit()) {
                 try {
                     HttpMessage<Buffer> message = new HttpMessage<>(event.getBody(), event.request().headers(),
                             () -> {
                                 event.response().setStatusCode(202).end();
-                                guard.dequeue();
                             },
                             error -> {
                                 event.response().setStatusCode(500).end("Failed to process ");
@@ -59,6 +56,7 @@ public class ReactiveHttpHandlerBean {
                     emitter.emit(message);
                 } catch (Exception any) {
                     guard.dequeue();
+
                     log.error("Emitting message failed", any);
                     event.response().setStatusCode(500).end();
                 }
@@ -77,7 +75,7 @@ public class ReactiveHttpHandlerBean {
         StrictQueueSizeGuard guard = new StrictQueueSizeGuard(streamConfig.bufferSize);
         Bundle<HttpMessage<?>> bundle = new Bundle<>(guard);
         Multi<HttpMessage<?>> processor = Multi.createFrom()
-                .<HttpMessage<?>> emitter(bundle::setEmitter, BackPressureStrategy.BUFFER).onOverflow().buffer();
+                .<HttpMessage<?>> emitter(bundle::setEmitter, BackPressureStrategy.BUFFER).onItem().invoke(guard::dequeue);
         bundle.setProcessor(processor);
 
         Bundle<HttpMessage<?>> previousProcessor = httpProcessors.put(key, bundle);

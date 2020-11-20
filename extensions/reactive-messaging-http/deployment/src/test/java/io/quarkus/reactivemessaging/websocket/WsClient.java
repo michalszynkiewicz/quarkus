@@ -1,7 +1,9 @@
 package io.quarkus.reactivemessaging.websocket;
 
 import java.net.URI;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -18,6 +20,10 @@ public class WsClient {
     }
 
     public WsConnection connect(URI uri) {
+        return connect(uri, 1, TimeUnit.SECONDS);
+    }
+
+    public WsConnection connect(URI uri, long timeout, TimeUnit unit) {
         CompletableFuture<WebSocket> webSocket = new CompletableFuture<>();
         vertx.createHttpClient().webSocket(uri.getPort(), uri.getHost(), uri.getPath(), ws -> {
             if (ws.succeeded()) {
@@ -26,38 +32,34 @@ public class WsClient {
                 webSocket.completeExceptionally(ws.cause());
             }
         });
-        return new WsConnection(webSocket);
+        try {
+            return new WsConnection(webSocket.get(timeout, unit));
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            throw new RuntimeException("Websocket client failed", e.getCause());
+        }
     }
 
     public static class WsConnection {
 
-        private CompletableFuture<WebSocket> ws;
+        private WebSocket ws;
+        private List<String> responses = new CopyOnWriteArrayList<>();
 
-        private WsConnection(CompletableFuture<WebSocket> ws) {
+        private WsConnection(WebSocket ws) {
             this.ws = ws;
+            ws.handler(buffer -> responses.add(buffer.toString()));
         }
 
-        public WsConnection verify(int timeout, TimeUnit timeUnit) {
+        public WsConnection send(String message) {
             try {
-                ws.get(timeout, timeUnit);
-            } catch (ExecutionException | InterruptedException | TimeoutException e) {
-                throw new RuntimeException("Websocket client failed", e.getCause());
+                ws.writeTextMessage(message);
+            } catch (Exception any) {
+                throw new RuntimeException("Failed to send message " + message, any);
             }
             return this;
         }
 
-        public WsConnection send(String message) {
-            ws = ws.thenApply(
-                    webSocket -> {
-                        try {
-                            webSocket.writeTextMessage(message);
-                        } catch (Exception any) {
-                            throw new RuntimeException("Failed to send message " + message, any);
-                        }
-                        return webSocket;
-                    });
-            return this;
+        public List<String> getResponses() {
+            return responses;
         }
-
     }
 }
