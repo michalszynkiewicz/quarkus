@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -25,9 +26,11 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 
 import io.quarkus.reactivemessaging.VertxFriendlyLock;
 import io.quarkus.reactivemessaging.http.runtime.HttpMessage;
+import io.quarkus.reactivemessaging.http.runtime.IncomingHttpMetadata;
 import io.quarkus.reactivemessaging.http.source.app.Consumer;
 import io.quarkus.test.QuarkusUnitTest;
 import io.restassured.response.ValidatableResponse;
+import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
@@ -48,8 +51,7 @@ class HttpSourceTest {
     }
 
     @Test
-    void shouldPassTextContentAndHeaders() {
-        // mstodo proper header support
+    void shouldPassTextContentPathAndHeaders() {
         String headerName = "my-custom-header";
         String headerValue = "my-custom-header-value";
         // @formatter:off
@@ -66,7 +68,12 @@ class HttpSourceTest {
         assertThat(messages).hasSize(1);
         HttpMessage<?> message = messages.get(0);
         assertThat(message.getPayload().toString()).isEqualTo("some-text");
-        assertThat(message.getHttpHeaders().get(headerName)).isEqualTo(headerValue);
+        Optional<IncomingHttpMetadata> maybeMetadata = message.getMetadata(IncomingHttpMetadata.class);
+        assertThat(maybeMetadata).isNotEmpty();
+        IncomingHttpMetadata metadata = maybeMetadata.get();
+        assertThat(metadata.getHeaders().get(headerName)).isEqualTo(headerValue);
+        assertThat(metadata.getPath()).isEqualTo("/my-http-source");
+        assertThat(metadata.getMethod()).isEqualTo(HttpMethod.POST);
     }
 
     @Test

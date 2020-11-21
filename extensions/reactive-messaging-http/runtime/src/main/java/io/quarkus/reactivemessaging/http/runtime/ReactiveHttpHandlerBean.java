@@ -45,13 +45,11 @@ public class ReactiveHttpHandlerBean {
             StrictQueueSizeGuard guard = httpProcessorBundle.guard;
             if (guard.prepareToEmit()) {
                 try {
-                    HttpMessage<Buffer> message = new HttpMessage<>(event.getBody(), event.request().headers(),
-                            () -> {
-                                event.response().setStatusCode(202).end();
-                            },
+                    HttpMessage<Buffer> message = new HttpMessage<>(event.getBody(), new IncomingHttpMetadata(event.request()),
+                            () -> event.response().setStatusCode(202).end(),
                             error -> {
-                                event.response().setStatusCode(500).end("Failed to process ");
                                 log.error("Failed to process message.", error);
+                                event.response().setStatusCode(500).end("Failed to process ");
                             });
                     emitter.emit(message);
                 } catch (Exception any) {

@@ -9,12 +9,12 @@ import java.util.Optional;
 import org.eclipse.microprofile.reactive.messaging.Message;
 import org.eclipse.microprofile.reactive.streams.operators.ReactiveStreams;
 import org.eclipse.microprofile.reactive.streams.operators.SubscriberBuilder;
+import org.jboss.logging.Logger;
 
 import io.quarkus.reactivemessaging.http.runtime.serializers.Serializer;
 import io.quarkus.reactivemessaging.http.runtime.serializers.SerializerFactoryBase;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.groups.UniRetry;
-import io.vertx.core.MultiMap;
 import io.vertx.core.Vertx;
 import io.vertx.mutiny.core.buffer.Buffer;
 import io.vertx.mutiny.ext.web.client.HttpRequest;
@@ -24,6 +24,8 @@ import io.vertx.mutiny.ext.web.client.WebClient;
 // mstodo test for query parameters
 // TODO support path parameters?
 class HttpSink {
+
+    private static Logger log = Logger.getLogger(HttpSink.class);
 
     private final SubscriberBuilder<Message<?>, Void> subscriber;
     private final WebClient client;
@@ -100,11 +102,24 @@ class HttpSink {
     }
 
     private HttpRequest<?> toHttpRequest(Message<?> message) {
-        HttpResponseMetadata metadata = message.getMetadata(HttpResponseMetadata.class).orElse((HttpResponseMetadata) null);
+        OutgoingHttpMetadata metadata = message.getMetadata(OutgoingHttpMetadata.class).orElse((OutgoingHttpMetadata) null);
 
-        MultiMap httpHeaders = metadata != null ? metadata.getHeaders() : MultiMap.caseInsensitiveMultiMap();
+        Map<String, List<String>> httpHeaders = metadata != null ? metadata.getHeaders() : Collections.emptyMap();
         Map<String, List<String>> query = metadata != null ? metadata.getQuery() : Collections.emptyMap();
+        Map<String, String> pathParams = metadata != null ? metadata.getPathParameters() : Collections.emptyMap();
 
+        String url = prepareUrl(pathParams);
+
+        HttpRequest<Buffer> request = createRequest(url);
+
+        addHeaders(request, httpHeaders);
+
+        addQueryParameters(query, request);
+
+        return request;
+    }
+
+    private HttpRequest<Buffer> createRequest(String url) {
         HttpRequest<Buffer> request;
         switch (method) {
             case "POST":
@@ -116,15 +131,37 @@ class HttpSink {
             default:
                 throw new IllegalArgumentException("Unsupported HTTP method: " + method + "only PUT and POST are supported");
         }
+        return request;
+    }
 
-        request.putHeaders(new io.vertx.mutiny.core.MultiMap(httpHeaders));
-
+    private void addQueryParameters(Map<String, List<String>> query, HttpRequest<Buffer> request) {
         for (Map.Entry<String, List<String>> queryParam : query.entrySet()) {
             for (String queryParamValue : queryParam.getValue()) {
                 request.addQueryParam(queryParam.getKey(), queryParamValue);
             }
         }
+    }
 
-        return request;
+    private void addHeaders(HttpRequest<Buffer> request, Map<String, List<String>> httpHeaders) {
+        if (!httpHeaders.isEmpty()) {
+            for (Map.Entry<String, List<String>> header : httpHeaders.entrySet()) {
+                request.putHeader(header.getKey(), header.getValue());
+            }
+        }
+    }
+
+    private String prepareUrl(Map<String, String> pathParams) {
+        String result = url;
+        for (Map.Entry<String, String> pathParamEntry : pathParams.entrySet()) {
+            String toReplace = String.format("{%s}", pathParamEntry.getKey());
+            if (url.contains(toReplace)) {
+                result = url.replace(toReplace, pathParamEntry.getValue());
+            } else {
+                log.warnf("Failed to find %s in the URL that would correspond to the %s path parameter",
+                        toReplace, pathParamEntry.getKey());
+            }
+        }
+
+        return result;
     }
 }

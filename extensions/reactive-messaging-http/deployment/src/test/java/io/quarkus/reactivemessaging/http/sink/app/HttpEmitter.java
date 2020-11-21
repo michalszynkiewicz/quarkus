@@ -43,14 +43,21 @@ public class HttpEmitter {
     @Channel("my-http-sink")
     Emitter<Object> emitter;
 
+    @Channel("http-sink-with-path-param")
+    Emitter<Object> emitterWithPathParam;
+
     @Channel("retrying-http-sink")
     Emitter<Object> retryingEmitter;
 
-    public CompletionStage<Void> retryingEmitMessage(Object message) {
+    public <T> void emitMessageWithPathParam(Message<T> message) {
+        emitterWithPathParam.send(message);
+    }
+
+    public CompletionStage<Void> retryingEmitObject(Object message) {
         return retryingEmitter.send(message);
     }
 
-    public CompletionStage<Void> emitMessage(Object message) {
+    public CompletionStage<Void> emitObject(Object message) {
         return emitter.send(message);
     }
 }

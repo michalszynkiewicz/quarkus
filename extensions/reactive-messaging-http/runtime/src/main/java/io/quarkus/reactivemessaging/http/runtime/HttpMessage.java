@@ -7,8 +7,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import org.eclipse.microprofile.reactive.messaging.Message;
-
-import io.vertx.core.MultiMap;
+import org.eclipse.microprofile.reactive.messaging.Metadata;
 
 /**
  * used by http source
@@ -18,13 +17,14 @@ import io.vertx.core.MultiMap;
 public class HttpMessage<T> implements Message<T> {
 
     private final T payload;
-    private final MultiMap httpHeaders;
     private final Runnable successHandler;
     private final Consumer<Throwable> failureHandler;
+    private final Metadata metadata;
 
-    public HttpMessage(T payload, MultiMap httpHeaders, Runnable successHandler, Consumer<Throwable> failureHandler) {
+    public HttpMessage(T payload, IncomingHttpMetadata requestMetadata, Runnable successHandler,
+            Consumer<Throwable> failureHandler) {
         this.payload = payload;
-        this.httpHeaders = httpHeaders;
+        this.metadata = Metadata.of(requestMetadata);
         this.successHandler = successHandler;
         this.failureHandler = failureHandler;
     }
@@ -34,14 +34,14 @@ public class HttpMessage<T> implements Message<T> {
         return payload;
     }
 
-    // mstodo remove?
-    public MultiMap getHttpHeaders() {
-        return httpHeaders;
+    @Override
+    public Metadata getMetadata() {
+        return metadata;
     }
 
     @Override
     public Supplier<CompletionStage<Void>> getAck() {
-        return () -> CompletableFuture.runAsync(successHandler::run);
+        return () -> CompletableFuture.runAsync(successHandler);
     }
 
     @Override

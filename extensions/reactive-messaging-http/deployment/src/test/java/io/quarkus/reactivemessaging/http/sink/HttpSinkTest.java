@@ -1,9 +1,13 @@
 package io.quarkus.reactivemessaging.http.sink;
 
+import static com.google.common.collect.Maps.immutableEntry;
 import static io.restassured.RestAssured.given;
 import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.hasSize;
 
 import java.util.List;
 import java.util.concurrent.CompletionStage;
@@ -13,13 +17,14 @@ import java.util.function.Function;
 
 import javax.inject.Inject;
 
-import org.hamcrest.Matchers;
+import org.eclipse.microprofile.reactive.messaging.Message;
 import org.jboss.shrinkwrap.api.ShrinkWrap;
 import org.jboss.shrinkwrap.api.spec.JavaArchive;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
+import io.quarkus.reactivemessaging.http.runtime.OutgoingHttpMetadata;
 import io.quarkus.reactivemessaging.http.sink.app.CustomSerializer;
 import io.quarkus.reactivemessaging.http.sink.app.Dto;
 import io.quarkus.reactivemessaging.http.sink.app.HttpEmitter;
@@ -35,7 +40,7 @@ class HttpSinkTest {
     @Inject
     HttpEndpoint httpEndpoint;
     @Inject
-    HttpEmitter repeater;
+    HttpEmitter emitter;
 
     @RegisterExtension
     static final QuarkusUnitTest config = new QuarkusUnitTest()
@@ -45,7 +50,7 @@ class HttpSinkTest {
 
     @AfterEach
     void cleanUp() {
-        httpEndpoint.getReceivedRequests().clear();
+        httpEndpoint.getRequests().clear();
     }
 
     // mstodo test header passing
@@ -53,8 +58,8 @@ class HttpSinkTest {
     @Test
     void shouldSendMessage() throws InterruptedException {
         emit(Buffer.buffer("{\"foo\": \"bar\"}"));
-        assertThat(httpEndpoint.getReceivedRequests()).hasSize(1);
-        String body = httpEndpoint.getReceivedRequests().get(0).getBody();
+        assertThat(httpEndpoint.getRequests()).hasSize(1);
+        String body = httpEndpoint.getRequests().get(0).getBody();
         assertThat(new JsonObject(body)).isEqualTo(new JsonObject().put("foo", "bar"));
     }
 
@@ -70,19 +75,37 @@ class HttpSinkTest {
         // @formatter:on
         await() // mstodo why do we need to wait for it!
                 .atMost(1, TimeUnit.SECONDS)
-                .until(() -> httpEndpoint.getReceivedRequests(), Matchers.hasSize(1));
-        String body = httpEndpoint.getReceivedRequests().get(0).getBody();
+                .until(() -> httpEndpoint.getRequests(), hasSize(1));
+        String body = httpEndpoint.getRequests().get(0).getBody();
         assertThat(body).isEqualTo("SOME-TEXT");
     }
 
     // mstodo add content-type headers from serializer?
+    @Test
+    void shouldPassHeadersPathParamAndQueryParam() {
+        String id = "10";
+        OutgoingHttpMetadata metadata = new OutgoingHttpMetadata.Builder()
+                .addHeader("myHeader", "myValue")
+                .addPathParameter("id", id)
+                .addQueryParameter("sort", "ASC")
+                .build();
+        emitter.emitMessageWithPathParam(Message.of(new Dto("foo")).addMetadata(metadata));
+
+        await().atMost(5, TimeUnit.SECONDS)
+                .until(() -> httpEndpoint.getIdentifiableRequests(), aMapWithSize(1));
+
+        HttpEndpoint.Request request = httpEndpoint.getIdentifiableRequests().get(id);
+        assertThat(new JsonObject(request.getBody())).isEqualTo(new JsonObject().put("field", "foo"));
+        assertThat(request.getHeaders()).contains(immutableEntry("myHeader", singletonList("myValue")));
+        assertThat(request.getQueryParameters()).contains(immutableEntry("sort", singletonList("ASC")));
+    }
 
     @Test
     void shouldSerializeCollectionToJson() throws InterruptedException {
         emit(asList(new Dto("foo"), new Dto("bar")));
 
-        assertThat(httpEndpoint.getReceivedRequests()).hasSize(1);
-        String body = httpEndpoint.getReceivedRequests().get(0).getBody();
+        assertThat(httpEndpoint.getRequests()).hasSize(1);
+        String body = httpEndpoint.getRequests().get(0).getBody();
         assertThat(new JsonArray(body)).isEqualTo(new JsonArray("[{\"field\": \"foo\"}, {\"field\": \"bar\"}]"));
     }
 
@@ -90,7 +113,7 @@ class HttpSinkTest {
     void shouldSerializeObjectToJson() throws InterruptedException {
         emit(new Dto("fooo"));
 
-        List<HttpEndpoint.Request> requests = httpEndpoint.getReceivedRequests();
+        List<HttpEndpoint.Request> requests = httpEndpoint.getRequests();
         assertThat(requests).hasSize(1);
         String body = requests.get(0).getBody();
         assertThat(new JsonObject(body)).isEqualTo(new JsonObject("{\"field\": \"fooo\"}"));
@@ -99,9 +122,9 @@ class HttpSinkTest {
     @Test
     void shouldRetry() throws InterruptedException {
         httpEndpoint.setInitialFailures(1);
-        emit(repeater::retryingEmitMessage, new Dto("fooo"));
+        emit(emitter::retryingEmitObject, new Dto("fooo"));
 
-        List<HttpEndpoint.Request> requests = httpEndpoint.getReceivedRequests();
+        List<HttpEndpoint.Request> requests = httpEndpoint.getRequests();
         assertThat(requests).hasSize(1);
         String body = requests.get(0).getBody();
         assertThat(new JsonObject(body)).isEqualTo(new JsonObject("{\"field\": \"fooo\"}"));
@@ -113,14 +136,14 @@ class HttpSinkTest {
         emit(new Dto("fooo"));
         emit(new Dto("fooo2"));
 
-        List<HttpEndpoint.Request> requests = httpEndpoint.getReceivedRequests();
+        List<HttpEndpoint.Request> requests = httpEndpoint.getRequests();
         assertThat(requests).hasSize(1);
         String body = requests.get(0).getBody();
         assertThat(new JsonObject(body)).isEqualTo(new JsonObject("{\"field\": \"fooo2\"}"));
     }
 
     private void emit(Object payload) throws InterruptedException {
-        emit(repeater::emitMessage, payload);
+        emit(emitter::emitObject, payload);
     }
 
     private void emit(Function<Object, CompletionStage<Void>> emitter, Object payload) throws InterruptedException {
@@ -128,7 +151,5 @@ class HttpSinkTest {
         emitter.apply(payload).thenRun(done::countDown);
         done.await(1, TimeUnit.SECONDS);
     }
-
-    // mstodo support headers, incoming and outgoing
 
 }
