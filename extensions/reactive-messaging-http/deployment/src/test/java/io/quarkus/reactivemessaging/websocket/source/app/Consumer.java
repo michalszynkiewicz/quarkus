@@ -50,7 +50,9 @@ public class Consumer {
         return result;
     }
 
-    public List<String> getMessages() { // mstodo deserializers
+    public List<String> getMessages() {
+        // mstodo deserializers
+        // mstodo test deserializers
         return messages;
     }
 

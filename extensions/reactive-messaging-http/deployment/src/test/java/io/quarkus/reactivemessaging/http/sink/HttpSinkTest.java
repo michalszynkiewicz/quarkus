@@ -34,7 +34,6 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
-// mstodo non-sunny day scenario tests for everything :)
 class HttpSinkTest {
 
     @Inject
@@ -52,8 +51,6 @@ class HttpSinkTest {
     void cleanUp() {
         httpEndpoint.getRequests().clear();
     }
-
-    // mstodo test header passing
 
     @Test
     void shouldSendMessage() throws InterruptedException {
@@ -73,7 +70,7 @@ class HttpSinkTest {
         .then()
                 .statusCode(202);
         // @formatter:on
-        await() // mstodo why do we need to wait for it!
+        await()
                 .atMost(1, TimeUnit.SECONDS)
                 .until(() -> httpEndpoint.getRequests(), hasSize(1));
         String body = httpEndpoint.getRequests().get(0).getBody();

@@ -17,7 +17,6 @@ public class IncomingHttpMetadata {
         method = request.method();
     }
 
-    // mstodo test if it's propagated
     public HttpMethod getMethod() {
         return method;
     }

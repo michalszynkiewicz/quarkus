@@ -26,7 +26,6 @@ import io.quarkus.reactivemessaging.http.sink.app.HttpEmitterWithOverflow;
 import io.quarkus.reactivemessaging.http.sink.app.HttpEndpoint;
 import io.quarkus.test.QuarkusUnitTest;
 
-// mstodo this rather tests SR RM than the http connector, not sure if it makes sense to keep this test.
 class HttpSinkBackpressureTest {
 
     @RegisterExtension

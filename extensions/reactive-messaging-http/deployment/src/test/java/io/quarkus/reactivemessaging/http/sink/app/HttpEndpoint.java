@@ -21,7 +21,6 @@ import org.jboss.resteasy.annotations.jaxrs.PathParam;
 
 @ApplicationScoped
 @Path("/recorder")
-// mstodo change to JAX-RS, reactive routes may get dropped soon
 public class HttpEndpoint {
     private List<Request> requests = new ArrayList<>();
     private Map<String, Request> identifiableRequests = new HashMap<>();

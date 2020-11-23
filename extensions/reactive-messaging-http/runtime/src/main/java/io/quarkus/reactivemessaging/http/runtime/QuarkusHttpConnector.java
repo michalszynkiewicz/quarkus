@@ -30,11 +30,9 @@ import io.vertx.core.http.HttpMethod;
 
 @ConnectorAttribute(name = "url", type = "string", direction = OUTGOING, description = "The targeted URL", mandatory = true)
 @ConnectorAttribute(name = "serializer", type = "string", direction = OUTGOING, description = "Message serializer")
-
-// mstodo descriptions
-@ConnectorAttribute(name = "jitter", type = "string", direction = OUTGOING, description = "Configures the random factor when using back-off")
-@ConnectorAttribute(name = "delay", type = "string", direction = OUTGOING, description = "Configures a back-off delay between to attempt to re-subscribe. A random factor (jitter) is applied to increase the delay when several failures happen.", defaultValue = QuarkusHttpConnector.DEFAULT_JITTER)
-@ConnectorAttribute(name = "maxAttempts", type = "int", direction = OUTGOING, description = "The number of attempts, must be greater than zero", defaultValue = QuarkusHttpConnector.DEFAULT_MAX_ATTEMPTS_STR)
+@ConnectorAttribute(name = "maxAttempts", type = "int", direction = OUTGOING, description = "The number of attempts to make for sending a request to a remote endpoint. Must be greater than zero", defaultValue = QuarkusHttpConnector.DEFAULT_MAX_ATTEMPTS_STR)
+@ConnectorAttribute(name = "jitter", type = "string", direction = OUTGOING, description = "Configures the random factor when using back-off with maxAttempts > 1")
+@ConnectorAttribute(name = "delay", type = "string", direction = OUTGOING, description = "Configures a back-off delay between attempts to send a request. A random factor (jitter) is applied to increase the delay when several failures happen.", defaultValue = QuarkusHttpConnector.DEFAULT_JITTER)
 
 @ConnectorAttribute(name = "method", type = "string", direction = INCOMING_AND_OUTGOING, description = "The HTTP method (either `POST` or `PUT`)", defaultValue = "POST")
 @ConnectorAttribute(name = "path", type = "string", direction = INCOMING, description = "The path of the endpoint", mandatory = true)

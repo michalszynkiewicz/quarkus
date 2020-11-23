@@ -10,19 +10,21 @@ import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.eclipse.microprofile.reactive.messaging.Message;
 import org.eclipse.microprofile.reactive.messaging.Outgoing;
-import org.jboss.logging.Logger;
 
 import io.quarkus.reactivemessaging.http.runtime.HttpMessage;
 import io.vertx.core.buffer.Buffer;
 
-// mstodo no need for repeating, emitter is enough for tests
 @ApplicationScoped
 public class HttpEmitter {
-    private static final Logger log = Logger.getLogger(HttpEmitter.class);
 
-    // mstodo unused
-    public static final String HEADER_NAME = "http-header-from-repeater";
-    public static final String HEADER_VALUE = "headerValue";
+    @Channel("my-http-sink")
+    Emitter<Object> emitter;
+
+    @Channel("http-sink-with-path-param")
+    Emitter<Object> emitterWithPathParam;
+
+    @Channel("retrying-http-sink")
+    Emitter<Object> retryingEmitter;
 
     @Incoming("custom-http-source")
     @Outgoing("custom-http-sink")
@@ -39,16 +41,7 @@ public class HttpEmitter {
             }
         };
     }
-
-    @Channel("my-http-sink")
-    Emitter<Object> emitter;
-
-    @Channel("http-sink-with-path-param")
-    Emitter<Object> emitterWithPathParam;
-
-    @Channel("retrying-http-sink")
-    Emitter<Object> retryingEmitter;
-
+    
     public <T> void emitMessageWithPathParam(Message<T> message) {
         emitterWithPathParam.send(message);
     }

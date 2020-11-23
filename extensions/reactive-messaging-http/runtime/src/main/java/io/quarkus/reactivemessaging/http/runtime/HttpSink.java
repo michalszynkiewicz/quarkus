@@ -20,12 +20,9 @@ import io.vertx.mutiny.core.buffer.Buffer;
 import io.vertx.mutiny.ext.web.client.HttpRequest;
 import io.vertx.mutiny.ext.web.client.WebClient;
 
-// mstodo test for headers
-// mstodo test for query parameters
-// TODO support path parameters?
 class HttpSink {
 
-    private static Logger log = Logger.getLogger(HttpSink.class);
+    private static final Logger log = Logger.getLogger(HttpSink.class);
 
     private final SubscriberBuilder<Message<?>, Void> subscriber;
     private final WebClient client;
@@ -49,14 +46,15 @@ class HttpSink {
         subscriber = ReactiveStreams.<Message<?>> builder()
                 .flatMapCompletionStage(m -> {
                     Uni<Void> send = send(m);
+
                     if (maxAttempts > 1) {
-                        UniRetry<Void> retry = send // mstodo simplify the above if
-                                .onFailure().retry();
+                        UniRetry<Void> retry = send.onFailure().retry();
                         if (delay.isPresent()) {
                             retry = retry.withBackOff(delay.get()).withJitter(jitter);
                         }
                         send = retry.atMost(maxAttempts);
                     }
+
                     return send
                             .onItemOrFailure().transformToUni((result, error) -> {
                                 if (error != null) {
@@ -72,17 +70,15 @@ class HttpSink {
         return subscriber;
     }
 
-    // mstodo non-blocking serialization?
     private Uni<Void> send(Message<?> message) {
-        System.out.println("in send for " + message.getPayload()); // mstodo drop it
         HttpRequest<?> request = toHttpRequest(message);
-        Buffer payload = serialize(message.getPayload());
-        return Uni.createFrom().item(payload)
+        return Uni.createFrom().item(message.getPayload())
+                .onItem().transform(this::serialize)
                 .onItem().transformToUni(buffer -> invoke(request, buffer));
     }
 
     private <T> Buffer serialize(T payload) {
-        Serializer<T> serializer = serializerFactory.getSerializer(serializerName, payload); // mstodo test error handling, like serializer throwing an error
+        Serializer<T> serializer = serializerFactory.getSerializer(serializerName, payload);
 
         return Buffer.newInstance(serializer.serialize(payload));
     }
@@ -94,8 +90,6 @@ class HttpSink {
                     if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
                         return null;
                     } else {
-                        System.out.println("wrong status code: " + resp.statusCode()); // mstodo remove
-                        System.out.println("response: " + resp.bodyAsString()); // mstodo remove
                         throw new RuntimeException("HTTP request returned an invalid status: " + resp.statusCode());
                     }
                 });

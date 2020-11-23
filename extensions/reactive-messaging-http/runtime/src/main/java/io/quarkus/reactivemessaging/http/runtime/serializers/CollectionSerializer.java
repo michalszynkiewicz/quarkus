@@ -18,7 +18,6 @@ public class CollectionSerializer implements Serializer<Collection<?>> {
 
     @Override
     public Buffer serialize(Collection<?> payload) {
-        log.info("serializing " + payload); // mstodo remove
         JsonArray array = new JsonArray();
         for (Object element : payload) {
             array.add(JsonObject.mapFrom(element));

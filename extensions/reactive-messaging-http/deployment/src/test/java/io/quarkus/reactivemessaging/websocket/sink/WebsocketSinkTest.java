@@ -21,8 +21,6 @@ import io.quarkus.test.QuarkusUnitTest;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
-// mstodo tests for backpressure, http and websocket
-// mstodo backpressure for websocketsource
 class WebsocketSinkTest {
     @RegisterExtension
     static final QuarkusUnitTest config = new QuarkusUnitTest()

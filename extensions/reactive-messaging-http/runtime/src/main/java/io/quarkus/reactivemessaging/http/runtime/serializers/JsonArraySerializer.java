@@ -15,7 +15,6 @@ public class JsonArraySerializer implements Serializer<JsonArray> {
 
     @Override
     public Buffer serialize(JsonArray payload) {
-        log.info("serializing " + payload); // mstodo remove
         return payload.toBuffer();
     }
 }

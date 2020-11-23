@@ -19,7 +19,6 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.ext.web.RoutingContext;
 
-// mstodo separate http from websocket
 @Singleton
 public class ReactiveWebsocketHandlerBean {
 

@@ -16,7 +16,6 @@ public abstract class SerializerFactoryBase {
     private final List<Serializer> predefinedSerializers = new ArrayList<>();
 
     SerializerFactoryBase() {
-        // mstodo add more
         predefinedSerializers.add(new JsonObjectSerializer());
         predefinedSerializers.add(new JsonArraySerializer());
         predefinedSerializers.add(new StringSerializer());
@@ -40,7 +39,6 @@ public abstract class SerializerFactoryBase {
             @SuppressWarnings("unchecked")
             Serializer<T> serializer = serializersByClassName.get(name);
             if (serializer == null) {
-                // mstodo fail miserably
                 throw new IllegalArgumentException("No serializer class found for name: " + name);
             }
             if (serializer.handles(payload)) {
@@ -55,7 +53,6 @@ public abstract class SerializerFactoryBase {
                 return (Serializer<T>) serializer;
             }
         }
-        // mstodo fail properly
         throw new IllegalArgumentException("No predefined serializer found matching class: " + payload.getClass());
     }
 

@@ -68,7 +68,6 @@ public class ReactiveHttpConfig {
         List<WebsocketStreamConfig> streamConfigs = new ArrayList<>();
         Config config = ConfigProviderResolver.instance().getConfig();
         for (String propertyName : config.getPropertyNames()) {
-            // mstodo simplify it!
             String connectorName = getConnectorNameIfMatching(IN_PATTERN, propertyName, IN_KEY, MP_MSG_IN,
                     QuarkusWebsocketConnector.NAME);
 

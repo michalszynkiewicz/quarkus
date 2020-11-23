@@ -9,7 +9,7 @@ import java.util.Map;
 /**
  * Metadata for messages sent out by the http connector
  */
-public class OutgoingHttpMetadata { // mstodo rename to OutgoingHttpMetadata
+public class OutgoingHttpMetadata {
     private final Map<String, List<String>> query;
     private final Map<String, List<String>> headers;
     private final Map<String, String> pathParameters;
