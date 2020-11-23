@@ -28,7 +28,7 @@ import io.smallrye.reactive.messaging.annotations.ConnectorAttribute;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpMethod;
 
-@ConnectorAttribute(name = "url", type = "string", direction = OUTGOING, description = "The targeted URL", mandatory = true)
+@ConnectorAttribute(name = "url", type = "string", direction = OUTGOING, description = "The target URL", mandatory = true)
 @ConnectorAttribute(name = "serializer", type = "string", direction = OUTGOING, description = "Message serializer")
 @ConnectorAttribute(name = "maxAttempts", type = "int", direction = OUTGOING, description = "The number of attempts to make for sending a request to a remote endpoint. Must be greater than zero", defaultValue = QuarkusHttpConnector.DEFAULT_MAX_ATTEMPTS_STR)
 @ConnectorAttribute(name = "jitter", type = "string", direction = OUTGOING, description = "Configures the random factor when using back-off with maxAttempts > 1")

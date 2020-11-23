@@ -1,6 +1,7 @@
 package io.quarkus.reactivemessaging.http.runtime;
 
 import static io.smallrye.reactive.messaging.annotations.ConnectorAttribute.Direction.INCOMING;
+import static io.smallrye.reactive.messaging.annotations.ConnectorAttribute.Direction.OUTGOING;
 
 import java.net.URI;
 
@@ -22,6 +23,13 @@ import io.smallrye.reactive.messaging.annotations.ConnectorAttribute;
 import io.vertx.core.Vertx;
 
 @Connector(QuarkusWebsocketConnector.NAME)
+
+@ConnectorAttribute(name = "url", type = "string", direction = OUTGOING, description = "The target URL", mandatory = true)
+@ConnectorAttribute(name = "serializer", type = "string", direction = OUTGOING, description = "Message serializer")
+@ConnectorAttribute(name = "maxAttempts", type = "int", direction = OUTGOING, description = "The number of attempts to make for sending a message to a remote websocket endpoint. Must be greater than zero", defaultValue = QuarkusHttpConnector.DEFAULT_MAX_ATTEMPTS_STR)
+@ConnectorAttribute(name = "jitter", type = "string", direction = OUTGOING, description = "Configures the random factor when using back-off with maxAttempts > 1")
+@ConnectorAttribute(name = "delay", type = "string", direction = OUTGOING, description = "Configures a back-off delay between attempts to send a request. A random factor (jitter) is applied to increase the delay when several failures happen.", defaultValue = QuarkusHttpConnector.DEFAULT_JITTER)
+
 @ConnectorAttribute(name = "path", type = "string", direction = INCOMING, description = "The path of the endpoint", mandatory = true)
 @ConnectorAttribute(name = "buffer-size", type = "string", direction = INCOMING, description = "Websocket endpoint buffers messages if a consumer is not able to keep up. This setting specifies the size of the buffer.", defaultValue = QuarkusHttpConnector.DEFAULT_SOURCE_BUFFER_STR)
 @ApplicationScoped
