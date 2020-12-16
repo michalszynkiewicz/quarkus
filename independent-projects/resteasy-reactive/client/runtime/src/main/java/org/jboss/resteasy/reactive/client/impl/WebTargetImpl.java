@@ -1,20 +1,24 @@
 package org.jboss.resteasy.reactive.client.impl;
 
-import io.vertx.core.http.HttpClient;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.UriBuilder;
+
 import org.jboss.resteasy.reactive.client.spi.ClientRestHandler;
 import org.jboss.resteasy.reactive.common.core.Serialisers;
 import org.jboss.resteasy.reactive.common.jaxrs.ConfigurationImpl;
 import org.jboss.resteasy.reactive.common.jaxrs.UriBuilderImpl;
 import org.jboss.resteasy.reactive.spi.ThreadSetupAction;
+
+import io.vertx.core.http.HttpClient;
 
 public class WebTargetImpl implements WebTarget {
 
@@ -26,10 +30,12 @@ public class WebTargetImpl implements WebTarget {
     final ClientRestHandler[] handlerChain;
     final ClientRestHandler[] abortHandlerChain;
     final ThreadSetupAction requestContext;
+    final ExecutorService executorService;
 
     public WebTargetImpl(ClientImpl restClient, HttpClient client, UriBuilder uriBuilder,
             ConfigurationImpl configuration,
-            ClientRestHandler[] handlerChain, ClientRestHandler[] abortHandlerChain, ThreadSetupAction requestContext) {
+            ClientRestHandler[] handlerChain, ClientRestHandler[] abortHandlerChain, ThreadSetupAction requestContext,
+                         ExecutorService executorService) {
         this.restClient = restClient;
         this.client = client;
         this.uriBuilder = uriBuilder;
@@ -37,6 +43,7 @@ public class WebTargetImpl implements WebTarget {
         this.handlerChain = handlerChain;
         this.abortHandlerChain = abortHandlerChain;
         this.requestContext = requestContext;
+        this.executorService = executorService;
     }
 
     /**
@@ -263,7 +270,7 @@ public class WebTargetImpl implements WebTarget {
     protected WebTargetImpl newInstance(HttpClient client, UriBuilder uriBuilder,
             ConfigurationImpl configuration) {
         return new WebTargetImpl(restClient, client, uriBuilder, configuration, handlerChain, abortHandlerChain,
-                requestContext);
+                requestContext, executorService);
     }
 
     @Override
@@ -299,7 +306,7 @@ public class WebTargetImpl implements WebTarget {
     protected InvocationBuilderImpl createQuarkusRestInvocationBuilder(HttpClient client, UriBuilder uri,
             ConfigurationImpl configuration) {
         return new InvocationBuilderImpl(uri.build(), restClient, client, this, configuration, handlerChain,
-                abortHandlerChain, requestContext);
+                abortHandlerChain, requestContext, executorService);
     }
 
     @Override
@@ -376,7 +383,7 @@ public class WebTargetImpl implements WebTarget {
         return restClient.getClientContext().getClientProxies().get(clazz, this);
     }
 
-    ClientImpl getRestClient() {
+    public ClientImpl getRestClient() {
         return restClient;
     }
 

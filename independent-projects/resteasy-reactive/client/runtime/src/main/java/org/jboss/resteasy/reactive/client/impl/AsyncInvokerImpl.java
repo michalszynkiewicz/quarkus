@@ -1,24 +1,28 @@
 package org.jboss.resteasy.reactive.client.impl;
 
-import io.vertx.core.buffer.Buffer;
-import io.vertx.core.http.HttpClient;
 import java.lang.reflect.Type;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+
 import javax.ws.rs.client.AsyncInvoker;
 import javax.ws.rs.client.CompletionStageRxInvoker;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.InvocationCallback;
 import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.Response;
+
 import org.jboss.resteasy.reactive.client.spi.ClientRestHandler;
 import org.jboss.resteasy.reactive.common.util.types.Types;
 import org.jboss.resteasy.reactive.spi.ThreadSetupAction;
+
+import io.vertx.core.buffer.Buffer;
+import io.vertx.core.http.HttpClient;
 
 public class AsyncInvokerImpl implements AsyncInvoker, CompletionStageRxInvoker {
 
@@ -32,10 +36,11 @@ public class AsyncInvokerImpl implements AsyncInvoker, CompletionStageRxInvoker 
     final ClientRestHandler[] handlerChain;
     final ClientRestHandler[] abortHandlerChain;
     final ThreadSetupAction requestContext;
+    final ExecutorService customExecutorService;
 
     public AsyncInvokerImpl(ClientImpl restClient, HttpClient httpClient, URI uri, RequestSpec requestSpec,
             Map<String, Object> properties, ClientRestHandler[] handlerChain, ClientRestHandler[] abortHandlerChain,
-            ThreadSetupAction requestContext) {
+            ThreadSetupAction requestContext, ExecutorService customExecutorService) {
         this.restClient = restClient;
         this.httpClient = httpClient;
         this.uri = uri;
@@ -44,6 +49,7 @@ public class AsyncInvokerImpl implements AsyncInvoker, CompletionStageRxInvoker 
         this.handlerChain = handlerChain;
         this.abortHandlerChain = abortHandlerChain;
         this.requestContext = requestContext;
+        this.customExecutorService = customExecutorService;
     }
 
     public Map<String, Object> getProperties() {
@@ -251,9 +257,8 @@ public class AsyncInvokerImpl implements AsyncInvoker, CompletionStageRxInvoker 
     RestClientRequestContext performRequestInternal(String httpMethodName, Entity<?> entity, GenericType<?> responseType,
             boolean registerBodyHandler) {
         RestClientRequestContext restClientRequestContext = new RestClientRequestContext(restClient, httpClient, httpMethodName,
-                uri,
-                requestSpec.configuration, requestSpec.headers,
-                entity, responseType, registerBodyHandler, properties, handlerChain, abortHandlerChain, requestContext);
+                uri, requestSpec.configuration, requestSpec.headers,
+                entity, responseType, registerBodyHandler, properties, handlerChain, abortHandlerChain, requestContext, customExecutorService);
         restClientRequestContext.run();
         return restClientRequestContext;
     }

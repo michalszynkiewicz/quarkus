@@ -61,10 +61,12 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
 import javax.enterprise.inject.spi.DeploymentException;
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.sse.SseEventSink;
+
 import org.jboss.jandex.AnnotationInstance;
 import org.jboss.jandex.AnnotationTarget;
 import org.jboss.jandex.AnnotationValue;
@@ -153,14 +155,15 @@ public abstract class EndpointIndexer<T extends EndpointIndexer<T, PARAM, METHOD
     }
 
     protected final IndexView index;
-    private final Map<String, String> existingConverters;
+    protected final Map<String, String> existingConverters;
+    protected final Map<String, InjectableBean> injectableBeans;
+    protected final boolean hasRuntimeConverters;
+
     private final Map<DotName, String> scannedResourcePaths;
     protected final ResteasyReactiveConfig config;
-    private final AdditionalReaders additionalReaders;
+    protected final AdditionalReaders additionalReaders;
     private final Map<DotName, String> httpAnnotationToMethod;
-    private final Map<String, InjectableBean> injectableBeans;
     private final AdditionalWriters additionalWriters;
-    private final boolean hasRuntimeConverters;
     private final boolean defaultBlocking;
     private final Map<DotName, Map<String, String>> classLevelExceptionMappers;
     private final Function<String, BeanFactory<Object>> factoryCreator;
@@ -269,7 +272,7 @@ public abstract class EndpointIndexer<T extends EndpointIndexer<T, PARAM, METHOD
                             methodPath = "/" + methodPath;
                         }
                     } else {
-                        methodPath = "/";
+                        methodPath = ""; // mstodo does it work for server too?
                     }
                     ResourceMethod method = createResourceMethod(currentClassInfo, actualEndpointInfo,
                             classProduces, classConsumes, classNameBindings, httpMethod, info, methodPath, pathParameters,
@@ -297,6 +300,9 @@ public abstract class EndpointIndexer<T extends EndpointIndexer<T, PARAM, METHOD
                     if (methodPath != null) {
                         if (!methodPath.startsWith("/")) {
                             methodPath = "/" + methodPath;
+                        }
+                        if (methodPath.endsWith("/")) {
+                            methodPath = methodPath.substring(0, methodPath.length() - 1);
                         }
                     }
                     ResourceMethod method = createResourceMethod(currentClassInfo, actualEndpointInfo,
@@ -413,15 +419,11 @@ public abstract class EndpointIndexer<T extends EndpointIndexer<T, PARAM, METHOD
                         parameterResult, name, defaultValue, type, elementType, single,
                         AsmUtil.getSignature(paramType, typeArgMapper));
 
+                // mstodo are caches reused between client and server? If yes, we may need more separation here
                 if (type == ParameterType.BEAN) {
+                    // mstodo this may need to work differently for client
                     // transform the bean param
-                    ClassInfo beanParamClassInfo = index.getClassByName(paramType.name());
-                    InjectableBean injectableBean = scanInjectableBean(beanParamClassInfo,
-                            actualEndpointInfo,
-                            existingConverters, additionalReaders, injectableBeans, hasRuntimeConverters);
-                    if (injectableBean.isFormParamRequired()) {
-                        formParamRequired = true;
-                    }
+                    formParamRequired |= handleBeanParam(actualEndpointInfo, paramType, methodParameters, i);
                 } else if (type == ParameterType.FORM) {
                     formParamRequired = true;
                 }
@@ -484,6 +486,9 @@ public abstract class EndpointIndexer<T extends EndpointIndexer<T, PARAM, METHOD
         return AsmUtil.getSignature(type, typeArgMapper);
     }
 
+    protected abstract boolean handleBeanParam(ClassInfo actualEndpointInfo, Type paramType, MethodParameter[] methodParameters,
+            int i);
+
     protected void handleAdditionalMethodProcessing(METHOD method, ClassInfo currentClassInfo, MethodInfo info) {
 
     }
@@ -499,7 +504,7 @@ public abstract class EndpointIndexer<T extends EndpointIndexer<T, PARAM, METHOD
             boolean encoded, Type paramType, PARAM parameterResult, String name, String defaultValue,
             ParameterType type, String elementType, boolean single, String signature);
 
-    private String[] applyDefaultProduces(String[] produces, Type nonAsyncReturnType) {
+    protected String[] applyDefaultProduces(String[] produces, Type nonAsyncReturnType) {
         if (produces != null && produces.length != 0)
             return produces;
         // FIXME: primitives

@@ -1,12 +1,15 @@
 package org.jboss.resteasy.reactive.client.impl;
 
-import io.vertx.core.http.HttpClient;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
 import javax.ws.rs.ProcessingException;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.client.CompletionStageRxInvoker;
@@ -20,9 +23,12 @@ import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
+
 import org.jboss.resteasy.reactive.client.spi.ClientRestHandler;
 import org.jboss.resteasy.reactive.common.jaxrs.ConfigurationImpl;
 import org.jboss.resteasy.reactive.spi.ThreadSetupAction;
+
+import io.vertx.core.http.HttpClient;
 
 public class InvocationBuilderImpl implements Invocation.Builder {
 
@@ -35,11 +41,12 @@ public class InvocationBuilderImpl implements Invocation.Builder {
     final ClientRestHandler[] handlerChain;
     final ClientRestHandler[] abortHandlerChain;
     final ThreadSetupAction requestContext;
+    final ExecutorService executorService;
 
     public InvocationBuilderImpl(URI uri, ClientImpl restClient, HttpClient httpClient,
             WebTargetImpl target,
             ConfigurationImpl configuration, ClientRestHandler[] handlerChain,
-            ClientRestHandler[] abortHandlerChain, ThreadSetupAction requestContext) {
+            ClientRestHandler[] abortHandlerChain, ThreadSetupAction requestContext, ExecutorService executorService) {
         this.uri = uri;
         this.restClient = restClient;
         this.httpClient = httpClient;
@@ -48,6 +55,7 @@ public class InvocationBuilderImpl implements Invocation.Builder {
         this.handlerChain = handlerChain;
         this.abortHandlerChain = abortHandlerChain;
         this.requestContext = requestContext;
+        this.executorService = executorService;
     }
 
     @Override
@@ -83,7 +91,7 @@ public class InvocationBuilderImpl implements Invocation.Builder {
     @Override
     public AsyncInvokerImpl async() {
         return new AsyncInvokerImpl(restClient, httpClient, uri, requestSpec,
-                properties, handlerChain, abortHandlerChain, requestContext);
+                properties, handlerChain, abortHandlerChain, requestContext, executorService);
     }
 
     @Override
@@ -155,7 +163,7 @@ public class InvocationBuilderImpl implements Invocation.Builder {
     @Override
     public CompletionStageRxInvoker rx() {
         return new AsyncInvokerImpl(restClient, httpClient, uri, requestSpec,
-                properties, handlerChain, abortHandlerChain, requestContext);
+                properties, handlerChain, abortHandlerChain, requestContext, executorService);
     }
 
     @Override
@@ -166,7 +174,7 @@ public class InvocationBuilderImpl implements Invocation.Builder {
         RxInvokerProvider<?> invokerProvider = requestSpec.configuration.getRxInvokerProvider(clazz);
         if (invokerProvider != null) {
             // FIXME: should pass the Quarkus executor here, but MP-CP or not?
-            return (T) invokerProvider.getRxInvoker(this, null);
+            return (T) invokerProvider.getRxInvoker(this, executorService);
         }
         // TCK says we could throw IllegalStateException, or not, it doesn't discriminate, and the spec doesn't say
         return null;
@@ -179,8 +187,8 @@ public class InvocationBuilderImpl implements Invocation.Builder {
 
     private <T> T unwrap(CompletableFuture<T> c) {
         try {
-            return c.get();
-        } catch (InterruptedException e) {
+            return c.get(30, TimeUnit.SECONDS); // mstodo config property to configure it
+        } catch (InterruptedException | TimeoutException e) {
             throw new RuntimeException(e);
         } catch (ExecutionException e) {
             if (e.getCause() instanceof ProcessingException) {

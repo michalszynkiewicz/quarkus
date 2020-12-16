@@ -2,13 +2,6 @@ package io.quarkus.arc.processor;
 
 import static io.quarkus.arc.processor.IndexClassLookupUtils.getClassByName;
 
-import io.quarkus.arc.impl.GenericArrayTypeImpl;
-import io.quarkus.arc.impl.ParameterizedTypeImpl;
-import io.quarkus.arc.impl.TypeVariableImpl;
-import io.quarkus.arc.impl.WildcardTypeImpl;
-import io.quarkus.gizmo.BytecodeCreator;
-import io.quarkus.gizmo.MethodDescriptor;
-import io.quarkus.gizmo.ResultHandle;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -19,7 +12,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+
 import javax.enterprise.inject.spi.DefinitionException;
+
 import org.jboss.jandex.AnnotationInstance;
 import org.jboss.jandex.AnnotationTarget;
 import org.jboss.jandex.AnnotationValue;
@@ -36,11 +31,19 @@ import org.jboss.jandex.TypeVariable;
 import org.jboss.jandex.WildcardType;
 import org.jboss.logging.Logger;
 
+import io.quarkus.arc.impl.GenericArrayTypeImpl;
+import io.quarkus.arc.impl.ParameterizedTypeImpl;
+import io.quarkus.arc.impl.TypeVariableImpl;
+import io.quarkus.arc.impl.WildcardTypeImpl;
+import io.quarkus.gizmo.BytecodeCreator;
+import io.quarkus.gizmo.MethodDescriptor;
+import io.quarkus.gizmo.ResultHandle;
+
 /**
  *
  * @author Martin Kouba
  */
-final class Types {
+public final class Types {
 
     static final Logger LOGGER = Logger.getLogger(Types.class);
 
@@ -86,15 +89,7 @@ final class Types {
             // E.g. List<String> -> new ParameterizedTypeImpl(List.class, String.class)
             ParameterizedType parameterizedType = type.asParameterizedType();
 
-            List<Type> arguments = parameterizedType.arguments();
-            ResultHandle typeArgsHandle = creator.newArray(java.lang.reflect.Type.class, creator.load(arguments.size()));
-            for (int i = 0; i < arguments.size(); i++) {
-                creator.writeArrayValue(typeArgsHandle, i, getTypeHandle(creator, arguments.get(i), tccl));
-            }
-            return creator.newInstance(
-                    MethodDescriptor.ofConstructor(ParameterizedTypeImpl.class, java.lang.reflect.Type.class,
-                            java.lang.reflect.Type[].class),
-                    doLoadClass(creator, parameterizedType.name().toString(), tccl), typeArgsHandle);
+            return getParameterizedType(creator, tccl, parameterizedType);
 
         } else if (Kind.ARRAY.equals(type.kind())) {
             Type componentType = type.asArrayType().component();
@@ -141,6 +136,18 @@ final class Types {
         } else {
             throw new IllegalArgumentException("Unsupported bean type: " + type.kind() + ", " + type);
         }
+    }
+
+    public static ResultHandle getParameterizedType(BytecodeCreator creator, ResultHandle tccl, ParameterizedType parameterizedType) {
+        List<Type> arguments = parameterizedType.arguments();
+        ResultHandle typeArgsHandle = creator.newArray(java.lang.reflect.Type.class, creator.load(arguments.size()));
+        for (int i = 0; i < arguments.size(); i++) {
+            creator.writeArrayValue(typeArgsHandle, i, getTypeHandle(creator, arguments.get(i), tccl));
+        }
+        return creator.newInstance(
+                MethodDescriptor.ofConstructor(ParameterizedTypeImpl.class, java.lang.reflect.Type.class,
+                        java.lang.reflect.Type[].class),
+                doLoadClass(creator, parameterizedType.name().toString(), tccl), typeArgsHandle);
     }
 
     private static ResultHandle doLoadClass(BytecodeCreator creator, String className, ResultHandle tccl) {

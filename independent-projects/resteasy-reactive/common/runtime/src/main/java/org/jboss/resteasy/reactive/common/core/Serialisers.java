@@ -11,14 +11,17 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import javax.ws.rs.RuntimeType;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.ext.MessageBodyReader;
 import javax.ws.rs.ext.MessageBodyWriter;
 import javax.ws.rs.ext.ReaderInterceptor;
 import javax.ws.rs.ext.WriterInterceptor;
+
 import org.jboss.resteasy.reactive.common.jaxrs.ConfigurationImpl;
 import org.jboss.resteasy.reactive.common.model.ResourceReader;
 import org.jboss.resteasy.reactive.common.model.ResourceWriter;
@@ -52,8 +55,8 @@ public abstract class Serialisers {
         QuarkusMultivaluedMap<Class<?>, ResourceReader> readers;
         if (configuration != null && !configuration.getResourceReaders().isEmpty()) {
             readers = new QuarkusMultivaluedHashMap<>();
-            readers.putAll(this.readers);
             readers.addAll(configuration.getResourceReaders());
+            readers.addAll(new MultivaluedHashMap<>(this.readers)); // mstodo we can get rid of new hashmap creation
         } else {
             readers = this.readers;
         }
@@ -250,12 +253,12 @@ public abstract class Serialisers {
                     e.printStackTrace();
                     continue;
                 }
-                ResourceReader resourceWriter = new ResourceReader();
-                resourceWriter.setConstraint(builtinReader.constraint);
-                resourceWriter.setMediaTypeStrings(Collections.singletonList(builtinReader.mediaType));
+                ResourceReader resourceReader = new ResourceReader();
+                resourceReader.setConstraint(builtinReader.constraint);
+                resourceReader.setMediaTypeStrings(Collections.singletonList(builtinReader.mediaType));
                 // FIXME: we could still support beans
-                resourceWriter.setFactory(new UnmanagedBeanFactory<MessageBodyReader<?>>(reader));
-                addReader(builtinReader.entityClass, resourceWriter);
+                resourceReader.setFactory(new UnmanagedBeanFactory<MessageBodyReader<?>>(reader));
+                addReader(builtinReader.entityClass, resourceReader);
             }
         }
     }
@@ -276,8 +279,8 @@ public abstract class Serialisers {
         QuarkusMultivaluedMap<Class<?>, ResourceWriter> writers;
         if (configuration != null && !configuration.getResourceWriters().isEmpty()) {
             writers = new QuarkusMultivaluedHashMap<>();
-            writers.putAll(this.writers);
             writers.addAll(configuration.getResourceWriters());
+            writers.addAll(new MultivaluedHashMap<>(this.writers));
         } else {
             writers = this.writers;
         }

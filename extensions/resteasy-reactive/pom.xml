@@ -17,6 +17,7 @@
         <module>quarkus-resteasy-reactive-common</module>
         <module>quarkus-resteasy-reactive</module>
         <module>quarkus-jaxrs-client</module>
+        <module>quarkus-rest-client-microprofile</module>
         <module>quarkus-resteasy-reactive-jackson</module>
         <module>quarkus-resteasy-reactive-jsonb</module>
         <module>quarkus-resteasy-reactive-qute</module>
