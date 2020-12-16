@@ -19,7 +19,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
 import javax.ws.rs.core.Application;
+
 import org.jboss.jandex.AnnotationInstance;
 import org.jboss.jandex.AnnotationTarget;
 import org.jboss.jandex.ClassInfo;
@@ -138,6 +140,8 @@ public class ResteasyReactiveScanner {
             }
         }
 
+        Set<DotName> interfacesWithPathOnMethods = new HashSet<>();
+
         for (AnnotationInstance annotation : allPaths) {
             if (annotation.target().kind() == AnnotationTarget.Kind.CLASS) {
                 ClassInfo clazz = annotation.target().asClass();
@@ -161,8 +165,21 @@ public class ResteasyReactiveScanner {
                         methodExceptionMappers.add(instance.target().asMethod());
                     }
                 }
+            } else if (annotation.target().kind() == AnnotationTarget.Kind.METHOD){
+                System.out.println("found path annotation on ");
+                ClassInfo clazz = annotation.target().asMethod().declaringClass();
+                if (Modifier.isInterface(clazz.flags())) {
+                    interfacesWithPathOnMethods.add(clazz.name());
+                }
             }
         }
+
+        for (DotName interfaceName : interfacesWithPathOnMethods) {
+            if (!pathInterfaces.containsKey(interfaceName)) {
+                pathInterfaces.put(interfaceName, "");
+            }
+        }
+
 
         for (Map.Entry<DotName, String> i : pathInterfaces.entrySet()) {
             for (ClassInfo clazz : index.getAllKnownImplementors(i.getKey())) {

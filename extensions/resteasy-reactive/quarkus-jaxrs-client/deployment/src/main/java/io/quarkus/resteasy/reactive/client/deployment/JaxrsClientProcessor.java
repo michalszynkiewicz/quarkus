@@ -1,5 +1,9 @@
 package io.quarkus.resteasy.reactive.client.deployment;
 
+import static io.quarkus.deployment.Feature.RESTEASY_REACTIVE_JAXRS_CLIENT;
+
+import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -16,6 +20,7 @@ import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.MediaType;
 
+import org.codehaus.plexus.util.FileUtils;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.IndexView;
@@ -43,6 +48,7 @@ import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
 import io.quarkus.deployment.builditem.BytecodeTransformerBuildItem;
 import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
+import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.deployment.builditem.GeneratedClassBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.deployment.recording.RecorderContext;
@@ -65,6 +71,16 @@ import io.quarkus.runtime.RuntimeValue;
 public class JaxrsClientProcessor {
 
     @BuildStep
+    void addFeature(BuildProducer<FeatureBuildItem> features) { // mstodo polish this!
+        try {
+            File.createTempFile("-1featureregistration", "tmp");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        features.produce(new FeatureBuildItem(RESTEASY_REACTIVE_JAXRS_CLIENT));
+    }
+
+    @BuildStep
     @Record(ExecutionTime.STATIC_INIT)
     void setupClientProxies(ResteasyReactiveClientRecorder recorder,
             BeanContainerBuildItem beanContainerBuildItem,
@@ -79,11 +95,25 @@ public class JaxrsClientProcessor {
             BuildProducer<GeneratedClassBuildItem> generatedClassBuildItemBuildProducer,
             BuildProducer<BytecodeTransformerBuildItem> bytecodeTransformerBuildItemBuildProducer) {
 
+        try {
+            File.createTempFile("0inSetupClientProxies", "tmp");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         Serialisers serialisers = recorder.createSerializers();
 
         SerializersUtil.setupSerializers(recorder, reflectiveClassBuildItemBuildProducer, messageBodyReaderBuildItems,
                 messageBodyWriterBuildItems, beanContainerBuildItem, applicationResultBuildItem, serialisers,
                 RuntimeType.CLIENT);
+
+        // mstodo remove file stuff
+        try {
+            File tmp = File.createTempFile("1pathInterfaces", "tmp");
+            FileUtils.fileWrite(tmp,
+                    "path interfaces: " + resourceScanningResultBuildItem.getResult().getPathInterfaces().entrySet()); // mstodo remove
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
         if (resourceScanningResultBuildItem == null
                 || resourceScanningResultBuildItem.getResult().getPathInterfaces().isEmpty()) {
