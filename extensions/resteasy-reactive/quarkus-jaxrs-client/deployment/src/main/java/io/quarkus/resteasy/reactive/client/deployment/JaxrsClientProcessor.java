@@ -5,7 +5,6 @@ import static io.quarkus.deployment.Feature.RESTEASY_REACTIVE_JAXRS_CLIENT;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -20,7 +19,6 @@ import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.MediaType;
 
-import org.codehaus.plexus.util.FileUtils;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.IndexView;
@@ -53,11 +51,19 @@ import io.quarkus.deployment.builditem.GeneratedClassBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.deployment.recording.RecorderContext;
 import io.quarkus.deployment.util.JandexUtil;
+import io.quarkus.gizmo.AssignableResultHandle;
+import io.quarkus.gizmo.BytecodeCreator;
 import io.quarkus.gizmo.ClassCreator;
 import io.quarkus.gizmo.FieldDescriptor;
 import io.quarkus.gizmo.MethodCreator;
 import io.quarkus.gizmo.MethodDescriptor;
 import io.quarkus.gizmo.ResultHandle;
+import io.quarkus.resteasy.reactive.client.deployment.beanparam.BeanParamItem;
+import io.quarkus.resteasy.reactive.client.deployment.beanparam.ClientBeanParamInfo;
+import io.quarkus.resteasy.reactive.client.deployment.beanparam.CookieParamItem;
+import io.quarkus.resteasy.reactive.client.deployment.beanparam.HeaderParamItem;
+import io.quarkus.resteasy.reactive.client.deployment.beanparam.Item;
+import io.quarkus.resteasy.reactive.client.deployment.beanparam.QueryParamItem;
 import io.quarkus.resteasy.reactive.client.runtime.ResteasyReactiveClientRecorder;
 import io.quarkus.resteasy.reactive.common.deployment.ApplicationResultBuildItem;
 import io.quarkus.resteasy.reactive.common.deployment.QuarkusFactoryCreator;
@@ -88,6 +94,7 @@ public class JaxrsClientProcessor {
             BuildProducer<ReflectiveClassBuildItem> reflectiveClassBuildItemBuildProducer,
             List<MessageBodyReaderBuildItem> messageBodyReaderBuildItems,
             List<MessageBodyWriterBuildItem> messageBodyWriterBuildItems,
+            List<JaxrsClientEnricherBuildItem> enricherBuildItems,
             BeanArchiveIndexBuildItem beanArchiveIndexBuildItem,
             ResourceScanningResultBuildItem resourceScanningResultBuildItem,
             ResteasyReactiveConfig config,
@@ -95,11 +102,6 @@ public class JaxrsClientProcessor {
             BuildProducer<GeneratedClassBuildItem> generatedClassBuildItemBuildProducer,
             BuildProducer<BytecodeTransformerBuildItem> bytecodeTransformerBuildItemBuildProducer) {
 
-        try {
-            File.createTempFile("0inSetupClientProxies", "tmp");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
         Serialisers serialisers = recorder.createSerializers();
 
         SerializersUtil.setupSerializers(recorder, reflectiveClassBuildItemBuildProducer, messageBodyReaderBuildItems,
@@ -107,13 +109,6 @@ public class JaxrsClientProcessor {
                 RuntimeType.CLIENT);
 
         // mstodo remove file stuff
-        try {
-            File tmp = File.createTempFile("1pathInterfaces", "tmp");
-            FileUtils.fileWrite(tmp,
-                    "path interfaces: " + resourceScanningResultBuildItem.getResult().getPathInterfaces().entrySet()); // mstodo remove
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
 
         if (resourceScanningResultBuildItem == null
                 || resourceScanningResultBuildItem.getResult().getPathInterfaces().isEmpty()) {
@@ -140,19 +135,22 @@ public class JaxrsClientProcessor {
                 .setDefaultBlocking(applicationResultBuildItem.getResult().isBlocking())
                 .setHasRuntimeConverters(false).build();
 
-        List<RestClientInterface> clientDefinitions = new ArrayList<>();
-        for (Map.Entry<DotName, String> i : result.getPathInterfaces().entrySet()) {
+        Map<String, RuntimeValue<Function<WebTarget, ?>>> clientImplementations = new HashMap<>();
+        for (Map.Entry<DotName, String> i : result.getClientInterfaces().entrySet()) {
             ClassInfo clazz = index.getClassByName(i.getKey());
             //these interfaces can also be clients
             //so we generate client proxies for them
             RestClientInterface clientProxy = clientEndpointIndexer.createClientProxy(clazz,
                     i.getValue());
             if (clientProxy != null) {
-                clientDefinitions.add(clientProxy);
+                RuntimeValue<Function<WebTarget, ?>> proxyProvider = generateClientInvoker(recorderContext, clientProxy,
+                        enricherBuildItems, generatedClassBuildItemBuildProducer, clazz, index);
+                if (proxyProvider != null) {
+                    clientImplementations.put(clientProxy.getClassName(), proxyProvider);
+                }
             }
+
         }
-        Map<String, RuntimeValue<Function<WebTarget, ?>>> clientImplementations = generateClientInvokers(recorderContext,
-                clientDefinitions, generatedClassBuildItemBuildProducer);
 
         recorder.setupClientProxies(clientImplementations);
 
@@ -201,128 +199,224 @@ public class JaxrsClientProcessor {
         recorder.setGenericTypeMapping(genericTypeMapping);
     }
 
-    private Map<String, RuntimeValue<Function<WebTarget, ?>>> generateClientInvokers(RecorderContext recorderContext,
-            List<RestClientInterface> clientDefinitions,
-            BuildProducer<GeneratedClassBuildItem> generatedClassBuildItemBuildProducer) {
-        Map<String, RuntimeValue<Function<WebTarget, ?>>> ret = new HashMap<>();
-        for (RestClientInterface restClientInterface : clientDefinitions) {
-            boolean subResource = false;
-            //if the interface contains sub resource locator methods we ignore it
-            for (ResourceMethod i : restClientInterface.getMethods()) {
-                if (i.getHttpMethod() == null) {
-                    subResource = true;
-                }
-                break;
+    private RuntimeValue<Function<WebTarget, ?>> generateClientInvoker(RecorderContext recorderContext,
+            RestClientInterface restClientInterface, List<JaxrsClientEnricherBuildItem> enrichers,
+            BuildProducer<GeneratedClassBuildItem> generatedClassBuildItemBuildProducer, ClassInfo interfaceClass,
+            IndexView index) {
+        boolean subResource = false;
+        //if the interface contains sub resource locator methods we ignore it
+        for (ResourceMethod i : restClientInterface.getMethods()) {
+            if (i.getHttpMethod() == null) {
+                subResource = true;
             }
-            if (subResource) {
-                continue;
+            break;
+        }
+        if (subResource) {
+            return null;
+        }
+        String name = restClientInterface.getClassName() + "$$QuarkusRestClientInterface";
+        MethodDescriptor ctorDesc = MethodDescriptor.ofConstructor(name, WebTarget.class.getName());
+        try (ClassCreator c = new ClassCreator(new GeneratedClassGizmoAdaptor(generatedClassBuildItemBuildProducer, true),
+                name, null, Object.class.getName(), restClientInterface.getClassName())) {
+
+            FieldDescriptor target = FieldDescriptor.of(name, "target", WebTarget.class);
+            c.getFieldCreator(target).setModifiers(Modifier.FINAL);
+
+            MethodCreator ctor = c.getMethodCreator(ctorDesc);
+            ctor.invokeSpecialMethod(MethodDescriptor.ofConstructor(Object.class), ctor.getThis());
+
+            ResultHandle res = ctor.invokeInterfaceMethod(
+                    MethodDescriptor.ofMethod(WebTarget.class, "path", WebTarget.class, String.class),
+                    ctor.getMethodParam(0), ctor.load(restClientInterface.getPath()));
+            ctor.writeInstanceField(target, ctor.getThis(), res);
+
+            for (JaxrsClientEnricherBuildItem enricher : enrichers) {
+                enricher.getEnricher().enrichWebTarget(ctor, res, interfaceClass, index);
             }
-            String name = restClientInterface.getClassName() + "$$QuarkusRestClientInterface";
-            MethodDescriptor ctorDesc = MethodDescriptor.ofConstructor(name, WebTarget.class.getName());
-            try (ClassCreator c = new ClassCreator(new GeneratedClassGizmoAdaptor(generatedClassBuildItemBuildProducer, true),
-                    name, null, Object.class.getName(), restClientInterface.getClassName())) {
+            ctor.returnValue(null);
 
-                FieldDescriptor target = FieldDescriptor.of(name, "target", WebTarget.class);
-                c.getFieldCreator(target).setModifiers(Modifier.FINAL);
+            for (ResourceMethod method : restClientInterface.getMethods()) {
+                MethodCreator methodCreator = c.getMethodCreator(method.getName(), method.getReturnType(),
+                        Arrays.stream(method.getParameters()).map(s -> s.type).toArray());
 
-                MethodCreator ctor = c.getMethodCreator(ctorDesc);
-                ctor.invokeSpecialMethod(MethodDescriptor.ofConstructor(Object.class), ctor.getThis());
-
-                ResultHandle res = ctor.invokeInterfaceMethod(
-                        MethodDescriptor.ofMethod(WebTarget.class, "path", WebTarget.class, String.class),
-                        ctor.getMethodParam(0), ctor.load(restClientInterface.getPath()));
-                ctor.writeInstanceField(target, ctor.getThis(), res);
-                ctor.returnValue(null);
-
-                for (ResourceMethod method : restClientInterface.getMethods()) {
-                    MethodCreator m = c.getMethodCreator(method.getName(), method.getReturnType(),
-                            Arrays.stream(method.getParameters()).map(s -> s.type).toArray());
-                    ResultHandle tg = m.readInstanceField(target, m.getThis());
-                    if (method.getPath() != null) {
-                        tg = m.invokeInterfaceMethod(MethodDescriptor.ofMethod(WebTarget.class, "path", WebTarget.class,
-                                String.class), tg, m.load(method.getPath()));
-                    }
-
-                    Integer bodyParameterIdx = null;
-
-                    for (int i = 0; i < method.getParameters().length; ++i) {
-                        MethodParameter p = method.getParameters()[i];
-                        if (p.parameterType == ParameterType.QUERY) {
-                            //TODO: converters
-                            ResultHandle array = m.newArray(Object.class, 1);
-                            m.writeArrayValue(array, 0, m.getMethodParam(i));
-                            tg = m.invokeInterfaceMethod(
-                                    MethodDescriptor.ofMethod(WebTarget.class, "queryParam", WebTarget.class,
-                                            String.class, Object[].class),
-                                    tg, m.load(p.name), array);
-                        } else if (p.parameterType == ParameterType.BODY) {
-                            bodyParameterIdx = i;
-                        }
-
-                    }
-
-                    ResultHandle builder;
-                    if (method.getProduces() == null || method.getProduces().length == 0) {
-                        builder = m.invokeInterfaceMethod(
-                                MethodDescriptor.ofMethod(WebTarget.class, "request", Invocation.Builder.class), tg);
-                    } else {
-
-                        ResultHandle array = m.newArray(String.class, method.getProduces().length);
-                        for (int i = 0; i < method.getProduces().length; ++i) {
-                            m.writeArrayValue(array, i, m.load(method.getProduces()[i]));
-                        }
-                        builder = m.invokeInterfaceMethod(
-                                MethodDescriptor.ofMethod(WebTarget.class, "request", Invocation.Builder.class, String[].class),
-                                tg, array);
-                    }
-                    //TODO: async return types
-
-                    ResultHandle result;
-                    if (bodyParameterIdx != null) {
-                        String mediaTypeValue = MediaType.APPLICATION_OCTET_STREAM;
-                        String[] consumes = method.getConsumes();
-                        if (consumes != null && consumes.length > 0) {
-                            if (consumes.length > 1) {
-                                throw new IllegalArgumentException(
-                                        "Multiple `@Consumes` values used in a MicroProfile Rest Client: " +
-                                                restClientInterface.getClassName()
-                                                + " Unable to determine a single `Content-Type`.");
-                            }
-                            mediaTypeValue = consumes[0];
-                        }
-                        ResultHandle mediaType = m.invokeStaticMethod(
-                                MethodDescriptor.ofMethod(MediaType.class, "valueOf", MediaType.class, String.class),
-                                m.load(mediaTypeValue));
-
-                        ResultHandle entity = m.invokeStaticMethod(
-                                MethodDescriptor.ofMethod(Entity.class, "entity", Entity.class, Object.class, MediaType.class),
-                                m.getMethodParam(bodyParameterIdx),
-                                mediaType);
-                        result = m.invokeInterfaceMethod(
-                                MethodDescriptor.ofMethod(Invocation.Builder.class, "method", Object.class, String.class,
-                                        Entity.class, Class.class),
-                                builder, m.load(method.getHttpMethod()), entity, m.loadClass(method.getSimpleReturnType()));
-                    } else {
-                        result = m.invokeInterfaceMethod(
-                                MethodDescriptor.ofMethod(Invocation.Builder.class, "method", Object.class, String.class,
-                                        Class.class),
-                                builder, m.load(method.getHttpMethod()), m.loadClass(method.getSimpleReturnType()));
-                    }
-                    m.returnValue(result);
+                ResultHandle targetField = methodCreator.readInstanceField(target, methodCreator.getThis());
+                if (method.getPath() != null) {
+                    // mstodo this is wrong, this (and other places like this) should writeInstanceField to the new value isntead
+                    targetField = methodCreator
+                            .invokeInterfaceMethod(MethodDescriptor.ofMethod(WebTarget.class, "path", WebTarget.class,
+                                    String.class), targetField, methodCreator.load(method.getPath()));
                 }
 
-            }
-            String creatorName = restClientInterface.getClassName() + "$$QuarkusRestClientInterfaceCreator";
-            try (ClassCreator c = new ClassCreator(new GeneratedClassGizmoAdaptor(generatedClassBuildItemBuildProducer, true),
-                    creatorName, null, Object.class.getName(), Function.class.getName())) {
+                Integer bodyParameterIdx = null;
 
-                MethodCreator apply = c
-                        .getMethodCreator(MethodDescriptor.ofMethod(creatorName, "apply", Object.class, Object.class));
-                apply.returnValue(apply.newInstance(ctorDesc, apply.getMethodParam(0)));
+                // mstodo invoke each
+                Map<MethodDescriptor, ResultHandle> invocationBuilderEnrichers = new HashMap<>();
+
+                for (int paramIdx = 0; paramIdx < method.getParameters().length; ++paramIdx) {
+                    MethodParameter param = method.getParameters()[paramIdx]; // mstodo we need a wrapper on it so that it can be used together with field, etc?
+                    if (param.parameterType == ParameterType.QUERY) {
+                        //TODO: converters
+                        addQueryParam(methodCreator, targetField, param.name,
+                                methodCreator.getMethodParam(paramIdx));
+                    } else if (param.parameterType == ParameterType.BEAN) {
+                        ClientBeanParamInfo beanParam = (ClientBeanParamInfo) param;
+                        MethodDescriptor enricherMethod = MethodDescriptor.ofMethod(name,
+                                method.getName() + "$$enrichInvocationBuilder$$" + paramIdx, Invocation.Builder.class,
+                                Invocation.Builder.class, param.type);
+                        MethodCreator enricherMethodCreator = c.getMethodCreator(enricherMethod);
+
+                        AssignableResultHandle invocationBuilderRef = enricherMethodCreator
+                                .createVariable(Invocation.Builder.class);
+                        enricherMethodCreator.assign(invocationBuilderRef, enricherMethodCreator.getMethodParam(0));
+                        addBeanParamData(methodCreator, enricherMethodCreator,
+                                invocationBuilderRef,
+                                targetField, beanParam.getItems(),
+                                methodCreator.getMethodParam(paramIdx));
+                        enricherMethodCreator.returnValue(invocationBuilderRef);
+                        invocationBuilderEnrichers.put(enricherMethod, methodCreator.getMethodParam(paramIdx));
+                    } else if (param.parameterType == ParameterType.BODY) {
+                        bodyParameterIdx = paramIdx;
+                    }
+                }
+
+                ResultHandle builder;
+                if (method.getProduces() == null || method.getProduces().length == 0) {
+                    builder = methodCreator.invokeInterfaceMethod(
+                            MethodDescriptor.ofMethod(WebTarget.class, "request", Invocation.Builder.class), targetField);
+                } else {
+
+                    ResultHandle array = methodCreator.newArray(String.class, method.getProduces().length);
+                    for (int i = 0; i < method.getProduces().length; ++i) {
+                        methodCreator.writeArrayValue(array, i, methodCreator.load(method.getProduces()[i]));
+                    }
+                    builder = methodCreator.invokeInterfaceMethod(
+                            MethodDescriptor.ofMethod(WebTarget.class, "request", Invocation.Builder.class, String[].class),
+                            targetField, array);
+                }
+
+                for (Map.Entry<MethodDescriptor, ResultHandle> invocationBuilderEnricher : invocationBuilderEnrichers
+                        .entrySet()) {
+                    builder = methodCreator.invokeVirtualMethod(invocationBuilderEnricher.getKey(), methodCreator.getThis(),
+                            builder, invocationBuilderEnricher.getValue());
+                }
+
+                //TODO: async return types
+
+                ResultHandle result;
+                if (bodyParameterIdx != null) {
+                    String mediaTypeValue = MediaType.APPLICATION_OCTET_STREAM;
+                    String[] consumes = method.getConsumes();
+                    if (consumes != null && consumes.length > 0) {
+                        if (consumes.length > 1) {
+                            throw new IllegalArgumentException(
+                                    "Multiple `@Consumes` values used in a MicroProfile Rest Client: " +
+                                            restClientInterface.getClassName()
+                                            + " Unable to determine a single `Content-Type`.");
+                        }
+                        mediaTypeValue = consumes[0];
+                    }
+                    ResultHandle mediaType = methodCreator.invokeStaticMethod(
+                            MethodDescriptor.ofMethod(MediaType.class, "valueOf", MediaType.class, String.class),
+                            methodCreator.load(mediaTypeValue));
+
+                    ResultHandle entity = methodCreator.invokeStaticMethod(
+                            MethodDescriptor.ofMethod(Entity.class, "entity", Entity.class, Object.class, MediaType.class),
+                            methodCreator.getMethodParam(bodyParameterIdx),
+                            mediaType);
+                    result = methodCreator.invokeInterfaceMethod(
+                            MethodDescriptor.ofMethod(Invocation.Builder.class, "method", Object.class, String.class,
+                                    Entity.class, Class.class),
+                            builder, methodCreator.load(method.getHttpMethod()), entity,
+                            methodCreator.loadClass(method.getSimpleReturnType()));
+                } else {
+                    result = methodCreator.invokeInterfaceMethod(
+                            MethodDescriptor.ofMethod(Invocation.Builder.class, "method", Object.class, String.class,
+                                    Class.class),
+                            builder, methodCreator.load(method.getHttpMethod()),
+                            methodCreator.loadClass(method.getSimpleReturnType()));
+                }
+                methodCreator.returnValue(result);
             }
-            ret.put(restClientInterface.getClassName(), recorderContext.newInstance(creatorName));
 
         }
-        return ret;
+        String creatorName = restClientInterface.getClassName() + "$$QuarkusRestClientInterfaceCreator";
+        try (ClassCreator c = new ClassCreator(new GeneratedClassGizmoAdaptor(generatedClassBuildItemBuildProducer, true),
+                creatorName, null, Object.class.getName(), Function.class.getName())) {
+
+            MethodCreator apply = c
+                    .getMethodCreator(MethodDescriptor.ofMethod(creatorName, "apply", Object.class, Object.class));
+            apply.returnValue(apply.newInstance(ctorDesc, apply.getMethodParam(0)));
+        }
+        return recorderContext.newInstance(creatorName);
+
     }
+
+    private void addBeanParamData(BytecodeCreator methodCreator,
+            BytecodeCreator invocationBuidlerEnricher, // Invocation.Builder executePut$$enrichInvocationBuilder${noOfBeanParam}(Invocation.Builder)
+            AssignableResultHandle invocationBuilder,
+            ResultHandle targetField,
+            List<Item> beanParamItems,
+            ResultHandle param) {
+
+        BytecodeCreator creator = methodCreator.ifNotNull(param).trueBranch();
+        BytecodeCreator invoEnricher = invocationBuidlerEnricher.ifNotNull(invocationBuidlerEnricher.getMethodParam(1))
+                .trueBranch();
+        for (Item item : beanParamItems) {
+            switch (item.type()) {
+                case BEAN_PARAM:
+                    BeanParamItem beanParamItem = (BeanParamItem) item;
+                    ResultHandle beanParamElementHandle = beanParamItem.extract(creator, param);
+                    addBeanParamData(creator, invoEnricher, invocationBuilder, targetField, beanParamItem.items(),
+                            beanParamElementHandle);
+                    break;
+                case QUERY_PARAM:
+                    QueryParamItem queryParam = (QueryParamItem) item;
+                    addQueryParam(creator, targetField, queryParam.name(), queryParam.extract(creator, param));
+                    break;
+                case COOKIE:
+                    CookieParamItem cookieParam = (CookieParamItem) item;
+                    addCookieParam(invoEnricher, invocationBuilder,
+                            cookieParam.getCookieName(),
+                            cookieParam.extract(invoEnricher, invoEnricher.getMethodParam(1)));
+                    break;
+                case HEADER_PARAM:
+                    HeaderParamItem headerParam = (HeaderParamItem) item;
+                    addHeaderParam(invoEnricher, invocationBuilder,
+                            headerParam.getHeaderName(),
+                            headerParam.extract(invoEnricher, invoEnricher.getMethodParam(1)));
+                    break;
+                default:
+                    throw new IllegalStateException("Unimplemented"); // mstodo form params, etc
+            }
+        }
+    }
+
+    private void addQueryParam(BytecodeCreator methodCreator, AssignableResultHandle targetField,
+            String paramName, ResultHandle queryParamHandle) {
+        ResultHandle array = methodCreator.newArray(Object.class, 1);
+        methodCreator.writeArrayValue(array, 0, queryParamHandle);
+        methodCreator.assign(targetField, methodCreator.invokeInterfaceMethod(
+                MethodDescriptor.ofMethod(WebTarget.class, "queryParam", WebTarget.class,
+                        String.class, Object[].class),
+                targetField, methodCreator.load(paramName), array));
+    }
+
+    private void addHeaderParam(BytecodeCreator invoBuilderEnricher, AssignableResultHandle invocationBuilder,
+            String paramName, ResultHandle headerParamHandle) {
+        invoBuilderEnricher.assign(invocationBuilder,
+                invoBuilderEnricher.invokeInterfaceMethod(
+                        MethodDescriptor.ofMethod(Invocation.Builder.class, "header", Invocation.Builder.class, String.class,
+                                Object.class),
+                        invocationBuilder, invoBuilderEnricher.load(paramName), headerParamHandle));
+    }
+
+    private void addCookieParam(BytecodeCreator invoBuilderEnricher, AssignableResultHandle invocationBuilder,
+            String paramName, ResultHandle cookieParamHandle) {
+        invoBuilderEnricher.assign(invocationBuilder,
+                invoBuilderEnricher.invokeInterfaceMethod(
+                        MethodDescriptor.ofMethod(Invocation.Builder.class, "cookie", Invocation.Builder.class, String.class,
+                                String.class),
+                        invocationBuilder, invoBuilderEnricher.load(paramName), cookieParamHandle));
+    }
+
 }

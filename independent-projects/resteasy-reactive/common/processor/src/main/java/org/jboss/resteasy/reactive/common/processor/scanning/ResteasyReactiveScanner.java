@@ -26,6 +26,7 @@ import org.jboss.jandex.AnnotationInstance;
 import org.jboss.jandex.AnnotationTarget;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
+import org.jboss.jandex.FieldInfo;
 import org.jboss.jandex.IndexView;
 import org.jboss.jandex.MethodInfo;
 import org.jboss.jandex.Type;
@@ -116,29 +117,6 @@ public class ResteasyReactiveScanner {
         Map<DotName, String> pathInterfaces = new HashMap<>();
         Map<DotName, MethodInfo> resourcesThatNeedCustomProducer = new HashMap<>();
         List<MethodInfo> methodExceptionMappers = new ArrayList<>();
-        Set<String> beanParams = new HashSet<>();
-
-        for (AnnotationInstance beanParamAnnotation : index.getAnnotations(ResteasyReactiveDotNames.BEAN_PARAM)) {
-            AnnotationTarget target = beanParamAnnotation.target();
-            // FIXME: this isn't right wrt generics
-            switch (target.kind()) {
-                case FIELD:
-                    beanParams.add(target.asField().type().name().toString());
-                    break;
-                case METHOD:
-                    Type setterParamType = target.asMethod().parameters().get(0);
-                    beanParams.add(setterParamType.name().toString());
-                    break;
-                case METHOD_PARAMETER:
-                    MethodInfo method = target.asMethodParameter().method();
-                    int paramIndex = target.asMethodParameter().position();
-                    Type paramType = method.parameters().get(paramIndex);
-                    beanParams.add(paramType.name().toString());
-                    break;
-                default:
-                    break;
-            }
-        }
 
         Set<DotName> interfacesWithPathOnMethods = new HashSet<>();
 
@@ -174,6 +152,8 @@ public class ResteasyReactiveScanner {
             }
         }
 
+        Map<DotName, String> clientInterfaces = new HashMap<>(pathInterfaces);
+
         for (DotName interfaceName : interfacesWithPathOnMethods) {
             if (!pathInterfaces.containsKey(interfaceName)) {
                 pathInterfaces.put(interfaceName, "");
@@ -203,8 +183,45 @@ public class ResteasyReactiveScanner {
             }
             httpAnnotationToMethod.put(httpMethodInstance.target().asClass().name(), httpMethodInstance.value().asString());
         }
+
+        Set<String> beanParams = new HashSet<>();
+
+        Set<ClassInfo> beanParamAsBeanUsers = new HashSet<>(scannedResources.values());
+        beanParamAsBeanUsers.addAll(possibleSubResources.values());
+
+        for (AnnotationInstance beanParamAnnotation : index.getAnnotations(ResteasyReactiveDotNames.BEAN_PARAM)) {
+            AnnotationTarget target = beanParamAnnotation.target();
+            // FIXME: this isn't right wrt generics
+            // mstodo exclude stuff not used by any server endpoints
+            switch (target.kind()) {
+                case FIELD:
+                    FieldInfo field = target.asField();
+                    if (beanParamAsBeanUsers.contains(field.declaringClass())) {
+                        beanParams.add(field.type().name().toString());
+                    }
+                    break;
+                case METHOD:
+                    MethodInfo setterMethod = target.asMethod();
+                    if (beanParamAsBeanUsers.contains(setterMethod.declaringClass())) {
+                        Type setterParamType = setterMethod.parameters().get(0);
+                        beanParams.add(setterParamType.name().toString());
+                    }
+                    break;
+                case METHOD_PARAMETER:
+                    MethodInfo method = target.asMethodParameter().method();
+                    if (beanParamAsBeanUsers.contains(method.declaringClass())) {
+                        int paramIndex = target.asMethodParameter().position();
+                        Type paramType = method.parameters().get(paramIndex);
+                        beanParams.add(paramType.name().toString());
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+
         return new ResourceScanningResult(scannedResources,
-                scannedResourcePaths, possibleSubResources, pathInterfaces, resourcesThatNeedCustomProducer, beanParams,
+                scannedResourcePaths, possibleSubResources, pathInterfaces, clientInterfaces, resourcesThatNeedCustomProducer, beanParams,
                 httpAnnotationToMethod, methodExceptionMappers);
     }
 

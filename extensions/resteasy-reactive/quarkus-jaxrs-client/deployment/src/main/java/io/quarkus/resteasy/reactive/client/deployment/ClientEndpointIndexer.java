@@ -14,6 +14,7 @@ import java.util.Map;
 
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
+import org.jboss.jandex.IndexView;
 import org.jboss.jandex.Type;
 import org.jboss.resteasy.reactive.common.model.InjectableBean;
 import org.jboss.resteasy.reactive.common.model.MethodParameter;
@@ -30,6 +31,10 @@ import org.jboss.resteasy.reactive.common.providers.serialisers.jsonp.JsonObject
 import org.jboss.resteasy.reactive.common.providers.serialisers.jsonp.JsonStructureHandler;
 import org.jboss.resteasy.reactive.common.providers.serialisers.jsonp.JsonValueHandler;
 
+import io.quarkus.resteasy.reactive.client.deployment.beanparam.BeanParamParser;
+import io.quarkus.resteasy.reactive.client.deployment.beanparam.ClientBeanParamInfo;
+import io.quarkus.resteasy.reactive.client.deployment.beanparam.Item;
+
 public class ClientEndpointIndexer
         extends EndpointIndexer<ClientEndpointIndexer, ClientEndpointIndexer.ClientIndexedParam, ResourceMethod> {
     ClientEndpointIndexer(Builder builder) {
@@ -42,11 +47,11 @@ public class ClientEndpointIndexer
             RestClientInterface clazz = new RestClientInterface();
             clazz.setClassName(classInfo.name().toString());
             if (path != null) {
-                if (path.endsWith("/")) {
-                    path = path.substring(0, path.length() - 1);
-                }
                 if (!path.startsWith("/")) {
                     path = "/" + path;
+                }
+                if (path.endsWith("/")) {
+                    path = path.substring(0, path.length() - 1);
                 }
                 clazz.setPath(path);
             }
@@ -57,7 +62,7 @@ public class ClientEndpointIndexer
         } catch (Exception e) {
             //kinda bogus, but we just ignore failed interfaces for now
             //they can have methods that are not valid until they are actually extended by a concrete type
-            log.debug("Ignoring interface for creating client proxy" + classInfo.name(), e);
+            log.warn("Ignoring interface for creating client proxy" + classInfo.name(), e);
             return null;
         }
     }
@@ -68,12 +73,21 @@ public class ClientEndpointIndexer
     }
 
     @Override
-    protected InjectableBean scanInjectableBean(ClassInfo currentClassInfo,
-            ClassInfo actualEndpointInfo,
-            Map<String, String> existingConverters,
-            AdditionalReaders additionalReaders,
-            Map<String, InjectableBean> injectableBeans,
-            boolean hasRuntimeConverters) {
+    protected boolean handleBeanParam(ClassInfo actualEndpointInfo, Type paramType, MethodParameter[] methodParameters, int i) {
+        ClassInfo beanParamClassInfo = index.getClassByName(paramType.name());
+        methodParameters[i] = parseClientBeanParam(beanParamClassInfo, index);
+
+        return false;
+    }
+
+    private MethodParameter parseClientBeanParam(ClassInfo beanParamClassInfo, IndexView index) {
+        List<Item> items = BeanParamParser.parse(beanParamClassInfo, index);
+        return new ClientBeanParamInfo(items, beanParamClassInfo.name().toString());
+    }
+
+    protected InjectableBean scanInjectableBean(ClassInfo currentClassInfo, ClassInfo actualEndpointInfo,
+            Map<String, String> existingConverters, AdditionalReaders additionalReaders,
+            Map<String, InjectableBean> injectableBeans, boolean hasRuntimeConverters) {
         throw new RuntimeException("Injectable beans not supported in client");
     }
 

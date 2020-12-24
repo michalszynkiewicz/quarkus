@@ -3,6 +3,7 @@ package org.jboss.resteasy.reactive.common.processor.scanning;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.MethodInfo;
@@ -13,19 +14,21 @@ public final class ResourceScanningResult {
     final Map<DotName, String> scannedResourcePaths;
     final Map<DotName, ClassInfo> possibleSubResources;
     final Map<DotName, String> pathInterfaces;
+    final Map<DotName, String> clientInterfaces;
     final Map<DotName, MethodInfo> resourcesThatNeedCustomProducer;
     final Set<String> beanParams;
     final Map<DotName, String> httpAnnotationToMethod;
     final List<MethodInfo> classLevelExceptionMappers;
 
     public ResourceScanningResult(Map<DotName, ClassInfo> scannedResources, Map<DotName, String> scannedResourcePaths,
-            Map<DotName, ClassInfo> possibleSubResources, Map<DotName, String> pathInterfaces,
+            Map<DotName, ClassInfo> possibleSubResources, Map<DotName, String> pathInterfaces, Map<DotName, String> clientInterfaces,
             Map<DotName, MethodInfo> resourcesThatNeedCustomProducer,
             Set<String> beanParams, Map<DotName, String> httpAnnotationToMethod, List<MethodInfo> classLevelExceptionMappers) {
         this.scannedResources = scannedResources;
         this.scannedResourcePaths = scannedResourcePaths;
         this.possibleSubResources = possibleSubResources;
         this.pathInterfaces = pathInterfaces;
+        this.clientInterfaces = clientInterfaces;
         this.resourcesThatNeedCustomProducer = resourcesThatNeedCustomProducer;
         this.beanParams = beanParams;
         this.httpAnnotationToMethod = httpAnnotationToMethod;
@@ -46,6 +49,10 @@ public final class ResourceScanningResult {
 
     public Map<DotName, String> getPathInterfaces() {
         return pathInterfaces;
+    }
+
+    public Map<DotName, String> getClientInterfaces() {
+        return clientInterfaces;
     }
 
     public Map<DotName, MethodInfo> getResourcesThatNeedCustomProducer() {

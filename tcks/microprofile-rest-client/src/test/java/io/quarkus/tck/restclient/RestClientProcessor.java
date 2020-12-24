@@ -11,8 +11,9 @@ public class RestClientProcessor implements ApplicationArchiveProcessor {
     @Override
     public void process(Archive<?> applicationArchive, TestClass testClass) {
         // mstodo check if needed
-        String appProperties = "quarkus.index-dependency.tck.group-id=org.eclipse.microprofile.rest.client\n" +
-                "quarkus.index-dependency.tck.artifact-id=microprofile-rest-client-tck\n";
+        String appProperties = "";
+        //                ""quarkus.index-dependency.tck.group-id=org.eclipse.microprofile.rest.client\n" +
+        //                "quarkus.index-dependency.tck.artifact-id=microprofile-rest-client-tck\n";
         /*
          * // Only apply the processor to SSL tests
          * if (testClass.getName().contains("SslHostnameVerifierTest") ||

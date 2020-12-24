@@ -10,7 +10,6 @@ import static org.jboss.resteasy.reactive.common.processor.ResteasyReactiveDotNa
 import static org.jboss.resteasy.reactive.common.processor.ResteasyReactiveDotNames.JSONP_JSON_VALUE;
 import static org.jboss.resteasy.reactive.common.processor.ResteasyReactiveDotNames.MULTI_VALUED_MAP;
 
-import io.quarkus.gizmo.MethodCreator;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -18,7 +17,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import javax.ws.rs.core.MultivaluedMap;
+
 import org.jboss.jandex.AnnotationInstance;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
@@ -46,6 +47,8 @@ import org.jboss.resteasy.reactive.server.providers.serialisers.jsonp.ServerJson
 import org.jboss.resteasy.reactive.server.providers.serialisers.jsonp.ServerJsonObjectHandler;
 import org.jboss.resteasy.reactive.server.providers.serialisers.jsonp.ServerJsonStructureHandler;
 import org.jboss.resteasy.reactive.server.providers.serialisers.jsonp.ServerJsonValueHandler;
+
+import io.quarkus.gizmo.MethodCreator;
 
 public class ServerEndpointIndexer
         extends EndpointIndexer<ServerEndpointIndexer, ServerIndexedParameter, ServerResourceMethod> {
@@ -99,6 +102,15 @@ public class ServerEndpointIndexer
     @Override
     protected ServerResourceMethod createResourceMethod() {
         return new ServerResourceMethod();
+    }
+
+    @Override
+    protected boolean handleBeanParam(ClassInfo actualEndpointInfo, Type paramType, MethodParameter[] methodParameters, int i) {
+        ClassInfo beanParamClassInfo = index.getClassByName(paramType.name());
+        InjectableBean injectableBean = scanInjectableBean(beanParamClassInfo,
+                actualEndpointInfo,
+                existingConverters, additionalReaders, injectableBeans, hasRuntimeConverters);
+        return injectableBean.isFormParamRequired();
     }
 
     @Override
