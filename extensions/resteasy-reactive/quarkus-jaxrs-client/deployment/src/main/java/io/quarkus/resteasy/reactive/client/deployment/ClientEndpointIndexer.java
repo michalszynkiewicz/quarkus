@@ -7,10 +7,13 @@ import static org.jboss.resteasy.reactive.common.processor.ResteasyReactiveDotNa
 import static org.jboss.resteasy.reactive.common.processor.ResteasyReactiveDotNames.JSONP_JSON_STRING;
 import static org.jboss.resteasy.reactive.common.processor.ResteasyReactiveDotNames.JSONP_JSON_STRUCTURE;
 import static org.jboss.resteasy.reactive.common.processor.ResteasyReactiveDotNames.JSONP_JSON_VALUE;
+import static org.jboss.resteasy.reactive.common.processor.ResteasyReactiveDotNames.STRING;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+
+import javax.ws.rs.core.MediaType;
 
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
@@ -37,6 +40,10 @@ import io.quarkus.resteasy.reactive.client.deployment.beanparam.Item;
 
 public class ClientEndpointIndexer
         extends EndpointIndexer<ClientEndpointIndexer, ClientEndpointIndexer.ClientIndexedParam, ResourceMethod> {
+
+    private static final String[] PRODUCES_JSON_NEGOTATIED = new String[] { APPLICATION_JSON, MediaType.WILDCARD };
+    private static final String[] PRODUCES_JSON = new String[] { APPLICATION_JSON };
+
     ClientEndpointIndexer(Builder builder) {
         super(builder);
     }
@@ -125,6 +132,16 @@ public class ClientEndpointIndexer
     @Override
     protected ClientIndexedParam createIndexedParam() {
         return new ClientIndexedParam();
+    }
+
+    @Override
+    protected String[] applyDefaultProduces(String[] produces, Type nonAsyncReturnType) {
+        if (produces != null && produces.length != 0)
+            return produces;
+        // FIXME: primitives
+        if (STRING.equals(nonAsyncReturnType.name()))
+            return config.isSingleDefaultProduces() ? PRODUCES_JSON : PRODUCES_JSON_NEGOTATIED;
+        return applyAdditionalDefaults(nonAsyncReturnType);
     }
 
     public static class ClientIndexedParam extends IndexedParameter<ClientIndexedParam> {

@@ -190,7 +190,7 @@ public class AsyncInvokerImpl implements AsyncInvoker, CompletionStageRxInvoker 
 
     @Override
     public <T> CompletableFuture<T> method(String name, Class<T> responseType) {
-         return mapResponse(performRequestInternal(name, null, new GenericType<>(responseType)), responseType);
+        return mapResponse(performRequestInternal(name, null, new GenericType<>(responseType)), responseType);
     }
 
     @Override

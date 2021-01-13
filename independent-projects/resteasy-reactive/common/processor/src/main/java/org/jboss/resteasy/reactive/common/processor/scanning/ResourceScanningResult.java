@@ -21,7 +21,8 @@ public final class ResourceScanningResult {
     final List<MethodInfo> classLevelExceptionMappers;
 
     public ResourceScanningResult(Map<DotName, ClassInfo> scannedResources, Map<DotName, String> scannedResourcePaths,
-            Map<DotName, ClassInfo> possibleSubResources, Map<DotName, String> pathInterfaces, Map<DotName, String> clientInterfaces,
+            Map<DotName, ClassInfo> possibleSubResources, Map<DotName, String> pathInterfaces,
+            Map<DotName, String> clientInterfaces,
             Map<DotName, MethodInfo> resourcesThatNeedCustomProducer,
             Set<String> beanParams, Map<DotName, String> httpAnnotationToMethod, List<MethodInfo> classLevelExceptionMappers) {
         this.scannedResources = scannedResources;

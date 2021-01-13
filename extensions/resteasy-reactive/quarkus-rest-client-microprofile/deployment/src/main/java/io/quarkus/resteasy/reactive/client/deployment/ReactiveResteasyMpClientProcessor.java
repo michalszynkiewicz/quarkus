@@ -80,6 +80,14 @@ class ReactiveResteasyMpClientProcessor {
                     }
 
                 }
+                /*
+                 * mstodo: bring back if needed or drop if not ;)
+                 * ResultHandle restClientFilter = ctor
+                 * .newInstance(MethodDescriptor.ofConstructor(MicroProfileRestClientFilter.class));
+                 * ctor.invokeInterfaceMethod(
+                 * MethodDescriptor.ofMethod(Configurable.class, "register", Configurable.class, Object.class),
+                 * res, restClientFilter);
+                 */
             }
         }));
     }

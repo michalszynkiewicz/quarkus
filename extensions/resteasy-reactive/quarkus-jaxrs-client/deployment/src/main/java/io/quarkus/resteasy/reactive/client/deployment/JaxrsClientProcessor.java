@@ -2,6 +2,7 @@ package io.quarkus.resteasy.reactive.client.deployment;
 
 import static io.quarkus.deployment.Feature.RESTEASY_REACTIVE_JAXRS_CLIENT;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Modifier;
@@ -23,6 +24,8 @@ import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.IndexView;
 import org.jboss.jandex.Type;
+import org.jboss.resteasy.reactive.client.impl.ClientImpl;
+import org.jboss.resteasy.reactive.client.impl.WebTargetImpl;
 import org.jboss.resteasy.reactive.common.core.GenericTypeMapping;
 import org.jboss.resteasy.reactive.common.core.Serialisers;
 import org.jboss.resteasy.reactive.common.model.MethodParameter;
@@ -108,10 +111,8 @@ public class JaxrsClientProcessor {
                 messageBodyWriterBuildItems, beanContainerBuildItem, applicationResultBuildItem, serialisers,
                 RuntimeType.CLIENT);
 
-        // mstodo remove file stuff
-
         if (resourceScanningResultBuildItem == null
-                || resourceScanningResultBuildItem.getResult().getPathInterfaces().isEmpty()) {
+                || resourceScanningResultBuildItem.getResult().getClientInterfaces().isEmpty()) {
             recorder.setupClientProxies(new HashMap<>());
             return;
         }
@@ -217,7 +218,8 @@ public class JaxrsClientProcessor {
         String name = restClientInterface.getClassName() + "$$QuarkusRestClientInterface";
         MethodDescriptor ctorDesc = MethodDescriptor.ofConstructor(name, WebTarget.class.getName());
         try (ClassCreator c = new ClassCreator(new GeneratedClassGizmoAdaptor(generatedClassBuildItemBuildProducer, true),
-                name, null, Object.class.getName(), restClientInterface.getClassName())) {
+                name, null, Object.class.getName(),
+                Closeable.class.getName(), restClientInterface.getClassName())) {
 
             FieldDescriptor target = FieldDescriptor.of(name, "target", WebTarget.class);
             c.getFieldCreator(target).setModifiers(Modifier.FINAL);
@@ -235,28 +237,37 @@ public class JaxrsClientProcessor {
             }
             ctor.returnValue(null);
 
+            // create `void close()` method:
+            MethodCreator closeCreator = c.getMethodCreator(MethodDescriptor.ofMethod(Closeable.class, "close", void.class));
+            ResultHandle webTarget = closeCreator.readInstanceField(target, closeCreator.getThis());
+            ResultHandle webTargetImpl = closeCreator.checkCast(webTarget, WebTargetImpl.class);
+            ResultHandle restClient = closeCreator.invokeVirtualMethod(
+                    MethodDescriptor.ofMethod(WebTargetImpl.class, "getRestClient", ClientImpl.class), webTargetImpl);
+            closeCreator.invokeVirtualMethod(MethodDescriptor.ofMethod(ClientImpl.class, "close", void.class), restClient);
+            closeCreator.returnValue(null);
+
+            // create methods from the jaxrs interface
             for (ResourceMethod method : restClientInterface.getMethods()) {
                 MethodCreator methodCreator = c.getMethodCreator(method.getName(), method.getReturnType(),
                         Arrays.stream(method.getParameters()).map(s -> s.type).toArray());
 
                 ResultHandle targetField = methodCreator.readInstanceField(target, methodCreator.getThis());
                 if (method.getPath() != null) {
-                    // mstodo this is wrong, this (and other places like this) should writeInstanceField to the new value isntead
-                    targetField = methodCreator
+                    methodCreator.writeInstanceField(target, methodCreator.getThis(), methodCreator
                             .invokeInterfaceMethod(MethodDescriptor.ofMethod(WebTarget.class, "path", WebTarget.class,
-                                    String.class), targetField, methodCreator.load(method.getPath()));
+                                    String.class), targetField, methodCreator.load(method.getPath())));
                 }
 
                 Integer bodyParameterIdx = null;
 
-                // mstodo invoke each
                 Map<MethodDescriptor, ResultHandle> invocationBuilderEnrichers = new HashMap<>();
 
                 for (int paramIdx = 0; paramIdx < method.getParameters().length; ++paramIdx) {
-                    MethodParameter param = method.getParameters()[paramIdx]; // mstodo we need a wrapper on it so that it can be used together with field, etc?
+                    MethodParameter param = method.getParameters()[paramIdx];
+                    // mstodo we need a wrapper on it so that it can be used together with field, etc?
                     if (param.parameterType == ParameterType.QUERY) {
                         //TODO: converters
-                        addQueryParam(methodCreator, targetField, param.name,
+                        addQueryParam(methodCreator, target, param.name,
                                 methodCreator.getMethodParam(paramIdx));
                     } else if (param.parameterType == ParameterType.BEAN) {
                         ClientBeanParamInfo beanParam = (ClientBeanParamInfo) param;
@@ -270,7 +281,7 @@ public class JaxrsClientProcessor {
                         enricherMethodCreator.assign(invocationBuilderRef, enricherMethodCreator.getMethodParam(0));
                         addBeanParamData(methodCreator, enricherMethodCreator,
                                 invocationBuilderRef,
-                                targetField, beanParam.getItems(),
+                                target, beanParam.getItems(),
                                 methodCreator.getMethodParam(paramIdx));
                         enricherMethodCreator.returnValue(invocationBuilderRef);
                         invocationBuilderEnrichers.put(enricherMethod, methodCreator.getMethodParam(paramIdx));
@@ -280,6 +291,7 @@ public class JaxrsClientProcessor {
                 }
 
                 ResultHandle builder;
+                targetField = methodCreator.readInstanceField(target, methodCreator.getThis());
                 if (method.getProduces() == null || method.getProduces().length == 0) {
                     builder = methodCreator.invokeInterfaceMethod(
                             MethodDescriptor.ofMethod(WebTarget.class, "request", Invocation.Builder.class), targetField);
@@ -303,8 +315,8 @@ public class JaxrsClientProcessor {
                 //TODO: async return types
 
                 ResultHandle result;
+                String mediaTypeValue = MediaType.APPLICATION_JSON;
                 if (bodyParameterIdx != null) {
-                    String mediaTypeValue = MediaType.APPLICATION_OCTET_STREAM;
                     String[] consumes = method.getConsumes();
                     if (consumes != null && consumes.length > 0) {
                         if (consumes.length > 1) {
@@ -354,7 +366,7 @@ public class JaxrsClientProcessor {
     private void addBeanParamData(BytecodeCreator methodCreator,
             BytecodeCreator invocationBuidlerEnricher, // Invocation.Builder executePut$$enrichInvocationBuilder${noOfBeanParam}(Invocation.Builder)
             AssignableResultHandle invocationBuilder,
-            ResultHandle targetField,
+            FieldDescriptor target,
             List<Item> beanParamItems,
             ResultHandle param) {
 
@@ -366,12 +378,12 @@ public class JaxrsClientProcessor {
                 case BEAN_PARAM:
                     BeanParamItem beanParamItem = (BeanParamItem) item;
                     ResultHandle beanParamElementHandle = beanParamItem.extract(creator, param);
-                    addBeanParamData(creator, invoEnricher, invocationBuilder, targetField, beanParamItem.items(),
+                    addBeanParamData(creator, invoEnricher, invocationBuilder, target, beanParamItem.items(),
                             beanParamElementHandle);
                     break;
                 case QUERY_PARAM:
                     QueryParamItem queryParam = (QueryParamItem) item;
-                    addQueryParam(creator, targetField, queryParam.name(), queryParam.extract(creator, param));
+                    addQueryParam(creator, target, queryParam.name(), queryParam.extract(creator, param));
                     break;
                 case COOKIE:
                     CookieParamItem cookieParam = (CookieParamItem) item;
@@ -391,14 +403,17 @@ public class JaxrsClientProcessor {
         }
     }
 
-    private void addQueryParam(BytecodeCreator methodCreator, AssignableResultHandle targetField,
+    private void addQueryParam(BytecodeCreator methodCreator,
+            FieldDescriptor target,
             String paramName, ResultHandle queryParamHandle) {
+        ResultHandle targetField = methodCreator.readInstanceField(target, methodCreator.getThis());
         ResultHandle array = methodCreator.newArray(Object.class, 1);
         methodCreator.writeArrayValue(array, 0, queryParamHandle);
-        methodCreator.assign(targetField, methodCreator.invokeInterfaceMethod(
+        ResultHandle alteredTarget = methodCreator.invokeInterfaceMethod(
                 MethodDescriptor.ofMethod(WebTarget.class, "queryParam", WebTarget.class,
                         String.class, Object[].class),
-                targetField, methodCreator.load(paramName), array));
+                targetField, methodCreator.load(paramName), array);
+        methodCreator.writeInstanceField(target, methodCreator.getThis(), alteredTarget);
     }
 
     private void addHeaderParam(BytecodeCreator invoBuilderEnricher, AssignableResultHandle invocationBuilder,

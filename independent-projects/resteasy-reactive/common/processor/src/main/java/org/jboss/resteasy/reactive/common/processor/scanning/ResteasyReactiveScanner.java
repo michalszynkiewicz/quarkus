@@ -143,7 +143,7 @@ public class ResteasyReactiveScanner {
                         methodExceptionMappers.add(instance.target().asMethod());
                     }
                 }
-            } else if (annotation.target().kind() == AnnotationTarget.Kind.METHOD){
+            } else if (annotation.target().kind() == AnnotationTarget.Kind.METHOD) {
                 System.out.println("found path annotation on ");
                 ClassInfo clazz = annotation.target().asMethod().declaringClass();
                 if (Modifier.isInterface(clazz.flags())) {
@@ -159,7 +159,6 @@ public class ResteasyReactiveScanner {
                 pathInterfaces.put(interfaceName, "");
             }
         }
-
 
         for (Map.Entry<DotName, String> i : pathInterfaces.entrySet()) {
             for (ClassInfo clazz : index.getAllKnownImplementors(i.getKey())) {
@@ -221,7 +220,8 @@ public class ResteasyReactiveScanner {
         }
 
         return new ResourceScanningResult(scannedResources,
-                scannedResourcePaths, possibleSubResources, pathInterfaces, clientInterfaces, resourcesThatNeedCustomProducer, beanParams,
+                scannedResourcePaths, possibleSubResources, pathInterfaces, clientInterfaces, resourcesThatNeedCustomProducer,
+                beanParams,
                 httpAnnotationToMethod, methodExceptionMappers);
     }
 
