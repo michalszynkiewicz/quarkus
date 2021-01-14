@@ -79,6 +79,12 @@ import io.quarkus.runtime.RuntimeValue;
 
 public class JaxrsClientProcessor {
 
+    public static final MethodDescriptor STRING_REPLACE_METHOD = MethodDescriptor.ofMethod(String.class, "replace",
+            String.class,
+            CharSequence.class, CharSequence.class);
+    public static final MethodDescriptor STRING_VALUE_OF_METHOD = MethodDescriptor.ofMethod(String.class, "valueOf",
+            String.class, Object.class);
+
     @BuildStep
     void addFeature(BuildProducer<FeatureBuildItem> features) { // mstodo polish this!
         try {
@@ -254,16 +260,13 @@ public class JaxrsClientProcessor {
                 AssignableResultHandle target = methodCreator.createVariable(WebTarget.class);
 
                 methodCreator.assign(target, methodCreator.readInstanceField(targetFieldDescriptor, methodCreator.getThis()));
-                if (method.getPath() != null) {
-                    methodCreator.assign(target,
-                            methodCreator.invokeInterfaceMethod(
-                                    MethodDescriptor.ofMethod(WebTarget.class, "path", WebTarget.class, String.class),
-                                    target, methodCreator.load(method.getPath())));
-                }
 
                 Integer bodyParameterIdx = null;
 
                 Map<MethodDescriptor, ResultHandle> invocationBuilderEnrichers = new HashMap<>();
+
+                AssignableResultHandle path = methodCreator.createVariable(String.class);
+                methodCreator.assign(path, methodCreator.load(method.getPath()));
 
                 for (int paramIdx = 0; paramIdx < method.getParameters().length; ++paramIdx) {
                     MethodParameter param = method.getParameters()[paramIdx];
@@ -288,9 +291,25 @@ public class JaxrsClientProcessor {
 
                         enricherMethodCreator.returnValue(invocationBuilderRef);
                         invocationBuilderEnrichers.put(enricherMethod, methodCreator.getMethodParam(paramIdx));
+                    } else if (param.parameterType == ParameterType.PATH) {
+                        // mstodo
+                        ResultHandle paramPlaceholder = methodCreator.load(String.format("{%s}", param.name));
+                        ResultHandle pathParamValue = methodCreator.invokeStaticMethod(STRING_VALUE_OF_METHOD,
+                                methodCreator.getMethodParam(paramIdx));
+
+                        ResultHandle newPath = methodCreator.invokeVirtualMethod(STRING_REPLACE_METHOD, path, paramPlaceholder,
+                                pathParamValue);
+                        methodCreator.assign(path, newPath);
                     } else if (param.parameterType == ParameterType.BODY) {
                         bodyParameterIdx = paramIdx;
                     }
+                }
+
+                if (method.getPath() != null) {
+                    methodCreator.assign(target,
+                            methodCreator.invokeInterfaceMethod(
+                                    MethodDescriptor.ofMethod(WebTarget.class, "path", WebTarget.class, String.class),
+                                    target, path));
                 }
 
                 ResultHandle builder;

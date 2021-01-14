@@ -12,6 +12,7 @@ import javax.ws.rs.core.Configurable;
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.rest.client.annotation.RegisterProvider;
+import org.eclipse.microprofile.rest.client.annotation.RegisterProviders;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.jandex.AnnotationInstance;
@@ -49,6 +50,7 @@ class ReactiveResteasyMpClientProcessor {
 
     private static final DotName REST_CLIENT = DotName.createSimple(RestClient.class.getName());
     private static final DotName REGISTER_PROVIDER = DotName.createSimple(RegisterProvider.class.getName());
+    private static final DotName REGISTER_PROVIDERS = DotName.createSimple(RegisterProviders.class.getName());
     private static final DotName REGISTER_REST_CLIENT = DotName.createSimple(RegisterRestClient.class.getName());
     private static final DotName SESSION_SCOPED = DotName.createSimple(SessionScoped.class.getName());
 
@@ -68,17 +70,25 @@ class ReactiveResteasyMpClientProcessor {
                 Map<DotName, List<AnnotationInstance>> annotations = interfaceClass.annotations();
 
                 List<AnnotationInstance> providers = annotations.get(REGISTER_PROVIDER);
-                if (providers != null) {
-                    for (AnnotationInstance registerProvider : providers) {
-                        ResultHandle provider = ctor
-                                .newInstance(MethodDescriptor.ofConstructor(registerProvider.value().asString()));
-                        ctor.invokeInterfaceMethod(
-                                MethodDescriptor.ofMethod(Configurable.class, "register", Configurable.class, Object.class,
-                                        int.class),
-                                res, provider,
-                                ctor.load(registerProvider.valueWithDefault(index, "priority").asInt()));
+                // annotations.get(DotName.createSimple(RegisterProviders.class.getName())).get(0).values().get(0).value()
+                List<AnnotationInstance> providerMultiAnnotations = annotations.get(REGISTER_PROVIDERS);
+                if (providerMultiAnnotations != null) {
+                    for (AnnotationInstance providerMultiAnnotation : providerMultiAnnotations) {
+                        AnnotationValue annotationValue = providerMultiAnnotation.value();
+                        if (annotationValue != null) {
+                            for (AnnotationInstance provider : annotationValue.asNestedArray()) {
+                                addProvider(ctor, res, index, provider);
+                            }
+
+                        }
                     }
 
+                }
+
+                if (providers != null) {
+                    for (AnnotationInstance registerProvider : providers) {
+                        addProvider(ctor, res, index, registerProvider);
+                    }
                 }
                 /*
                  * mstodo: bring back if needed or drop if not ;)
@@ -88,6 +98,17 @@ class ReactiveResteasyMpClientProcessor {
                  * MethodDescriptor.ofMethod(Configurable.class, "register", Configurable.class, Object.class),
                  * res, restClientFilter);
                  */
+            }
+
+            private void addProvider(MethodCreator ctor, ResultHandle res, IndexView index,
+                    AnnotationInstance registerProvider) {
+                ResultHandle provider = ctor
+                        .newInstance(MethodDescriptor.ofConstructor(registerProvider.value().asString()));
+                ctor.invokeInterfaceMethod(
+                        MethodDescriptor.ofMethod(Configurable.class, "register", Configurable.class, Object.class,
+                                int.class),
+                        res, provider,
+                        ctor.load(registerProvider.valueWithDefault(index, "priority").asInt()));
             }
         }));
     }

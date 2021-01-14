@@ -103,6 +103,7 @@ public class ClientRequestContextImpl implements ClientRequestContext {
     @Override
     public MultivaluedMap<String, String> getStringHeaders() {
         // FIXME: this should be mutable, but it's a copy ATM
+        // mstodo: this!!!
         return restClientRequestContext.requestHeaders.asMap();
     }
 
