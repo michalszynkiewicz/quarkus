@@ -1,5 +1,32 @@
 package org.jboss.resteasy.reactive.client.impl;
 
+import java.net.URI;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
+import javax.ws.rs.RuntimeType;
+import javax.ws.rs.client.Client;
+import javax.ws.rs.client.Invocation;
+import javax.ws.rs.client.Invocation.Builder;
+import javax.ws.rs.client.WebTarget;
+import javax.ws.rs.core.Link;
+import javax.ws.rs.core.UriBuilder;
+
+import org.jboss.resteasy.reactive.client.handlers.ClientErrorHandler;
+import org.jboss.resteasy.reactive.client.handlers.ClientRequestFiltersRestHandler;
+import org.jboss.resteasy.reactive.client.handlers.ClientResponseRestHandler;
+import org.jboss.resteasy.reactive.client.handlers.ClientSendRequestHandler;
+import org.jboss.resteasy.reactive.client.spi.ClientContext;
+import org.jboss.resteasy.reactive.client.spi.ClientRestHandler;
+import org.jboss.resteasy.reactive.common.jaxrs.ConfigurationImpl;
+
 import io.netty.channel.EventLoopGroup;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Context;
@@ -12,6 +39,7 @@ import io.vertx.core.TimeoutStream;
 import io.vertx.core.Verticle;
 import io.vertx.core.Vertx;
 import io.vertx.core.WorkerExecutor;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.datagram.DatagramSocket;
 import io.vertx.core.datagram.DatagramSocketOptions;
 import io.vertx.core.dns.DnsClient;
@@ -30,6 +58,7 @@ import io.vertx.core.http.RequestOptions;
 import io.vertx.core.http.WebSocket;
 import io.vertx.core.http.WebSocketConnectOptions;
 import io.vertx.core.http.WebsocketVersion;
+import io.vertx.core.net.JksOptions;
 import io.vertx.core.net.NetClient;
 import io.vertx.core.net.NetClientOptions;
 import io.vertx.core.net.NetServer;
@@ -38,30 +67,6 @@ import io.vertx.core.net.SocketAddress;
 import io.vertx.core.shareddata.SharedData;
 import io.vertx.core.spi.VerticleFactory;
 import io.vertx.core.streams.ReadStream;
-import java.net.URI;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLContext;
-import javax.ws.rs.RuntimeType;
-import javax.ws.rs.client.Client;
-import javax.ws.rs.client.Invocation;
-import javax.ws.rs.client.Invocation.Builder;
-import javax.ws.rs.client.WebTarget;
-import javax.ws.rs.core.Link;
-import javax.ws.rs.core.UriBuilder;
-import org.jboss.resteasy.reactive.client.handlers.ClientErrorHandler;
-import org.jboss.resteasy.reactive.client.handlers.ClientRequestFiltersRestHandler;
-import org.jboss.resteasy.reactive.client.handlers.ClientResponseRestHandler;
-import org.jboss.resteasy.reactive.client.handlers.ClientSendRequestHandler;
-import org.jboss.resteasy.reactive.client.spi.ClientContext;
-import org.jboss.resteasy.reactive.client.spi.ClientRestHandler;
-import org.jboss.resteasy.reactive.common.jaxrs.ConfigurationImpl;
 
 public class ClientImpl implements Client {
 
@@ -78,7 +83,12 @@ public class ClientImpl implements Client {
 
     public ClientImpl(ConfigurationImpl configuration, ClientContext clientContext,
             HostnameVerifier hostnameVerifier,
+            String keystorePassword,
+            Buffer keystore,
+            Buffer trustStore,
             SSLContext sslContext) {
+        // mstodo: ssl context
+        // mstodo: hostnameVerifier
         this.configuration = configuration != null ? configuration : new ConfigurationImpl(RuntimeType.CLIENT);
         this.clientContext = clientContext;
         this.hostnameVerifier = hostnameVerifier;
@@ -96,7 +106,24 @@ public class ClientImpl implements Client {
             });
             closeVertx = true;
         }
-        this.httpClient = this.vertx.createHttpClient();
+        HttpClientOptions options = new HttpClientOptions();
+        // mstodo
+
+        if (keystore != null || trustStore != null) {
+            options = options.setSsl(true);
+            if (keystore != null) {
+                JksOptions jks = new JksOptions();
+                jks.setPassword(keystorePassword);
+                jks.setValue(keystore);
+                options = options.setKeyStoreOptions(jks);
+            }
+            if (trustStore != null) {
+                JksOptions jks = new JksOptions();
+                jks.setValue(trustStore);
+                options.setTrustStoreOptions(jks);
+            }
+        }
+        this.httpClient = this.vertx.createHttpClient(options);
         abortHandlerChain = new ClientRestHandler[] { new ClientErrorHandler() };
         handlerChain = new ClientRestHandler[] { new ClientRequestFiltersRestHandler(), new ClientSendRequestHandler(),
                 new ClientResponseRestHandler() };

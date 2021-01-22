@@ -160,6 +160,12 @@ public class ResteasyReactiveScanner {
             }
         }
 
+        Map<DotName, String> clientInterfaceSubtypes = new HashMap<>();
+        for (DotName interfaceName : clientInterfaces.keySet()) {
+            addClientSubInterfaces(interfaceName, index, clientInterfaceSubtypes, clientInterfaces);
+        }
+        clientInterfaces.putAll(clientInterfaceSubtypes);
+
         for (Map.Entry<DotName, String> i : pathInterfaces.entrySet()) {
             for (ClassInfo clazz : index.getAllKnownImplementors(i.getKey())) {
                 if (!Modifier.isAbstract(clazz.flags())) {
@@ -223,6 +229,19 @@ public class ResteasyReactiveScanner {
                 scannedResourcePaths, possibleSubResources, pathInterfaces, clientInterfaces, resourcesThatNeedCustomProducer,
                 beanParams,
                 httpAnnotationToMethod, methodExceptionMappers);
+    }
+
+    private static void addClientSubInterfaces(DotName interfaceName, IndexView index,
+            Map<DotName, String> clientInterfaceSubtypes, Map<DotName, String> clientInterfaces) {
+        Collection<ClassInfo> subclasses = index.getKnownDirectImplementors(interfaceName);
+        for (ClassInfo subclass : subclasses) {
+            if (!clientInterfaces.containsKey(subclass.name()) && Modifier.isInterface(subclass.flags())
+                    && !clientInterfaceSubtypes.containsKey(subclass.name())) {
+                clientInterfaceSubtypes.put(subclass.name(), clientInterfaces.get(interfaceName));
+                addClientSubInterfaces(subclass.name(), index, clientInterfaceSubtypes, clientInterfaces);
+            }
+        }
+
     }
 
     private static MethodInfo hasJaxRsCtorParams(ClassInfo classInfo) {

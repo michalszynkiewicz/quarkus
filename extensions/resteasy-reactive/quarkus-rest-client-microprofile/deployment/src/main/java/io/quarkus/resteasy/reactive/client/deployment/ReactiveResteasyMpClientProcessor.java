@@ -1,18 +1,13 @@
 package io.quarkus.resteasy.reactive.client.deployment;
 
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import javax.enterprise.context.SessionScoped;
-import javax.ws.rs.core.Configurable;
 
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.ConfigProvider;
-import org.eclipse.microprofile.rest.client.annotation.RegisterProvider;
-import org.eclipse.microprofile.rest.client.annotation.RegisterProviders;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.jandex.AnnotationInstance;
@@ -20,7 +15,6 @@ import org.jboss.jandex.AnnotationValue;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.CompositeIndex;
 import org.jboss.jandex.DotName;
-import org.jboss.jandex.IndexView;
 import org.jboss.logging.Logger;
 
 import io.quarkus.arc.BeanDestroyer;
@@ -38,7 +32,6 @@ import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
 import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
-import io.quarkus.gizmo.MethodCreator;
 import io.quarkus.gizmo.MethodDescriptor;
 import io.quarkus.gizmo.ResultHandle;
 import io.quarkus.rest.rest.client.microprofile.RestClientBase;
@@ -49,8 +42,6 @@ class ReactiveResteasyMpClientProcessor {
     private static final Logger log = Logger.getLogger(ReactiveResteasyMpClientProcessor.class);
 
     private static final DotName REST_CLIENT = DotName.createSimple(RestClient.class.getName());
-    private static final DotName REGISTER_PROVIDER = DotName.createSimple(RegisterProvider.class.getName());
-    private static final DotName REGISTER_PROVIDERS = DotName.createSimple(RegisterProviders.class.getName());
     private static final DotName REGISTER_REST_CLIENT = DotName.createSimple(RegisterRestClient.class.getName());
     private static final DotName SESSION_SCOPED = DotName.createSimple(SessionScoped.class.getName());
 
@@ -64,53 +55,7 @@ class ReactiveResteasyMpClientProcessor {
 
     @BuildStep
     void addMpClientEnricher(BuildProducer<JaxrsClientEnricherBuildItem> enrichers) {
-        enrichers.produce(new JaxrsClientEnricherBuildItem(new JaxrsClientEnricher() {
-            @Override
-            public void enrichWebTarget(MethodCreator ctor, ResultHandle res, ClassInfo interfaceClass, IndexView index) {
-                Map<DotName, List<AnnotationInstance>> annotations = interfaceClass.annotations();
-
-                List<AnnotationInstance> providers = annotations.get(REGISTER_PROVIDER);
-                // annotations.get(DotName.createSimple(RegisterProviders.class.getName())).get(0).values().get(0).value()
-                List<AnnotationInstance> providerMultiAnnotations = annotations.get(REGISTER_PROVIDERS);
-                if (providerMultiAnnotations != null) {
-                    for (AnnotationInstance providerMultiAnnotation : providerMultiAnnotations) {
-                        AnnotationValue annotationValue = providerMultiAnnotation.value();
-                        if (annotationValue != null) {
-                            for (AnnotationInstance provider : annotationValue.asNestedArray()) {
-                                addProvider(ctor, res, index, provider);
-                            }
-
-                        }
-                    }
-
-                }
-
-                if (providers != null) {
-                    for (AnnotationInstance registerProvider : providers) {
-                        addProvider(ctor, res, index, registerProvider);
-                    }
-                }
-                /*
-                 * mstodo: bring back if needed or drop if not ;)
-                 * ResultHandle restClientFilter = ctor
-                 * .newInstance(MethodDescriptor.ofConstructor(MicroProfileRestClientFilter.class));
-                 * ctor.invokeInterfaceMethod(
-                 * MethodDescriptor.ofMethod(Configurable.class, "register", Configurable.class, Object.class),
-                 * res, restClientFilter);
-                 */
-            }
-
-            private void addProvider(MethodCreator ctor, ResultHandle res, IndexView index,
-                    AnnotationInstance registerProvider) {
-                ResultHandle provider = ctor
-                        .newInstance(MethodDescriptor.ofConstructor(registerProvider.value().asString()));
-                ctor.invokeInterfaceMethod(
-                        MethodDescriptor.ofMethod(Configurable.class, "register", Configurable.class, Object.class,
-                                int.class),
-                        res, provider,
-                        ctor.load(registerProvider.valueWithDefault(index, "priority").asInt()));
-            }
-        }));
+        enrichers.produce(new JaxrsClientEnricherBuildItem(new MicroProfileRestClientEnricher()));
     }
 
     // mstodo inject rest client class names from

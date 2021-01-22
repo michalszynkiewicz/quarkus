@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 import javax.ws.rs.RuntimeType;
@@ -23,6 +24,7 @@ import javax.ws.rs.core.MediaType;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.IndexView;
+import org.jboss.jandex.MethodInfo;
 import org.jboss.jandex.Type;
 import org.jboss.resteasy.reactive.client.impl.ClientImpl;
 import org.jboss.resteasy.reactive.client.impl.WebTargetImpl;
@@ -221,6 +223,8 @@ public class JaxrsClientProcessor {
         if (subResource) {
             return null;
         }
+        // mstodo: ATM this may create a web target on each call of a method (each request)
+        // mstodo: optimize it
         String name = restClientInterface.getClassName() + "$$QuarkusRestClientInterface";
         MethodDescriptor ctorDesc = MethodDescriptor.ofConstructor(name, WebTarget.class.getName());
         try (ClassCreator c = new ClassCreator(new GeneratedClassGizmoAdaptor(generatedClassBuildItemBuildProducer, true),
@@ -233,14 +237,17 @@ public class JaxrsClientProcessor {
             MethodCreator ctor = c.getMethodCreator(ctorDesc);
             ctor.invokeSpecialMethod(MethodDescriptor.ofConstructor(Object.class), ctor.getThis());
 
-            ResultHandle res = ctor.invokeInterfaceMethod(
-                    MethodDescriptor.ofMethod(WebTarget.class, "path", WebTarget.class, String.class),
-                    ctor.getMethodParam(0), ctor.load(restClientInterface.getPath()));
-            ctor.writeInstanceField(targetFieldDescriptor, ctor.getThis(), res);
+            AssignableResultHandle globalTarget = ctor.createVariable(WebTarget.class);
+
+            ctor.assign(globalTarget,
+                    ctor.invokeInterfaceMethod(
+                            MethodDescriptor.ofMethod(WebTarget.class, "path", WebTarget.class, String.class),
+                            ctor.getMethodParam(0), ctor.load(restClientInterface.getPath())));
 
             for (JaxrsClientEnricherBuildItem enricher : enrichers) {
-                enricher.getEnricher().enrichWebTarget(ctor, res, interfaceClass, index);
+                enricher.getEnricher().enrichGlobalWebTarget(ctor, globalTarget, interfaceClass, index);
             }
+            ctor.writeInstanceField(targetFieldDescriptor, ctor.getThis(), globalTarget);
             ctor.returnValue(null);
 
             // create `void close()` method:
@@ -253,9 +260,13 @@ public class JaxrsClientProcessor {
             closeCreator.returnValue(null);
 
             // create methods from the jaxrs interface
+            int methodIndex = 0;
             for (ResourceMethod method : restClientInterface.getMethods()) {
+                methodIndex++;
+                String[] javaMethodParameters = Arrays.stream(method.getParameters()).map(s -> s.type)
+                        .toArray(String[]::new);
                 MethodCreator methodCreator = c.getMethodCreator(method.getName(), method.getReturnType(),
-                        Arrays.stream(method.getParameters()).map(s -> s.type).toArray());
+                        javaMethodParameters);
 
                 AssignableResultHandle target = methodCreator.createVariable(WebTarget.class);
 
@@ -278,7 +289,8 @@ public class JaxrsClientProcessor {
                     } else if (param.parameterType == ParameterType.BEAN) {
                         ClientBeanParamInfo beanParam = (ClientBeanParamInfo) param;
                         MethodDescriptor enricherMethod = MethodDescriptor.ofMethod(name,
-                                method.getName() + "$$enrichInvocationBuilder$$" + paramIdx, Invocation.Builder.class,
+                                method.getName() + "$$" + methodIndex + "$$enrichInvocationBuilder$$" + paramIdx,
+                                Invocation.Builder.class,
                                 Invocation.Builder.class, param.type);
                         MethodCreator enricherMethodCreator = c.getMethodCreator(enricherMethod);
 
@@ -302,6 +314,20 @@ public class JaxrsClientProcessor {
                         methodCreator.assign(path, newPath);
                     } else if (param.parameterType == ParameterType.BODY) {
                         bodyParameterIdx = paramIdx;
+                    } else if (param.parameterType == ParameterType.HEADER) {
+                        MethodDescriptor enricherMethod = MethodDescriptor.ofMethod(name,
+                                method.getName() + "$$" + methodIndex + "$$enrichInvocationBuilder$$" + paramIdx,
+                                Invocation.Builder.class,
+                                Invocation.Builder.class, param.type);
+                        MethodCreator enricherMethodCreator = c.getMethodCreator(enricherMethod);
+
+                        AssignableResultHandle invocationBuilderRef = enricherMethodCreator
+                                .createVariable(Invocation.Builder.class);
+                        enricherMethodCreator.assign(invocationBuilderRef, enricherMethodCreator.getMethodParam(0));
+                        addHeaderParam(enricherMethodCreator, invocationBuilderRef, param.name,
+                                enricherMethodCreator.getMethodParam(1));
+                        enricherMethodCreator.returnValue(invocationBuilderRef);
+                        invocationBuilderEnrichers.put(enricherMethod, methodCreator.getMethodParam(paramIdx));
                     }
                 }
 
@@ -310,6 +336,18 @@ public class JaxrsClientProcessor {
                             methodCreator.invokeInterfaceMethod(
                                     MethodDescriptor.ofMethod(WebTarget.class, "path", WebTarget.class, String.class),
                                     target, path));
+                }
+
+                for (JaxrsClientEnricherBuildItem enricher : enrichers) {
+                    //MethodCreator methodCreator, ClassInfo interfaceClass, MethodInfo method,
+                    //            AssignableResultHandle methodWebTarget, IndexView index, BuildProducer<GeneratedClassBuildItem> generatedClasses,
+                    //            int methodIndex);
+                    // mstodo get rid of this, this is ugly, not the way it should be:
+                    MethodInfo javaMethod = getJavaMethod(interfaceClass, method, javaMethodParameters, index)
+                            .orElseThrow(() -> new RuntimeException(
+                                    "Failed to find matching java method for " + method + " on " + interfaceClass));
+                    enricher.getEnricher().enrichMethodWebTarget(methodCreator, interfaceClass, javaMethod, target, index,
+                            generatedClassBuildItemBuildProducer, methodIndex);
                 }
 
                 ResultHandle builder;
@@ -340,6 +378,7 @@ public class JaxrsClientProcessor {
                 if (bodyParameterIdx != null) {
                     String[] consumes = method.getConsumes();
                     if (consumes != null && consumes.length > 0) {
+
                         if (consumes.length > 1) {
                             throw new IllegalArgumentException(
                                     "Multiple `@Consumes` values used in a MicroProfile Rest Client: " +
@@ -382,6 +421,25 @@ public class JaxrsClientProcessor {
         }
         return recorderContext.newInstance(creatorName);
 
+    }
+
+    private Optional<MethodInfo> getJavaMethod(ClassInfo interfaceClass, ResourceMethod method,
+            String[] parameters, IndexView index) {
+
+        Optional<MethodInfo> maybeMethod = interfaceClass.methods().stream()
+                .filter(it -> it.name().equals(method.getName()) && Arrays.equals(
+                        it.parameters().stream().map(par -> par.name().toString()).toArray(), parameters))
+                .findAny();
+        if (!maybeMethod.isPresent()) {
+            for (DotName interfaceName : interfaceClass.interfaceNames()) {
+                maybeMethod = getJavaMethod(index.getClassByName(interfaceName), method, parameters, index);
+                if (maybeMethod.isPresent()) {
+                    break;
+                }
+            }
+        }
+
+        return maybeMethod;
     }
 
     private void addBeanParamData(BytecodeCreator methodCreator,
