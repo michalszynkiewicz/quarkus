@@ -10,4 +10,7 @@ public class RestClientRecorder {
     public void setRestClientBuilderResolver() {
         RestClientBuilderResolver.setInstance(new BuilderResolver());
     }
+
+    public void createRestClient(String toString, String baseUri, String configPrefix) {
+    }
 }

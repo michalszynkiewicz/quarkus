@@ -35,7 +35,7 @@ import org.jboss.resteasy.reactive.common.processor.ResteasyReactiveDotNames;
 
 public class ResteasyReactiveScanner {
 
-    private static Map<DotName, String> BUILTIN_HTTP_ANNOTATIONS_TO_METHOD = new HashMap<>();
+    public static Map<DotName, String> BUILTIN_HTTP_ANNOTATIONS_TO_METHOD = new HashMap<>();
 
     static {
         BUILTIN_HTTP_ANNOTATIONS_TO_METHOD.put(GET, "GET");
@@ -152,13 +152,13 @@ public class ResteasyReactiveScanner {
             }
         }
 
-        Map<DotName, String> clientInterfaces = new HashMap<>(pathInterfaces);
-
         for (DotName interfaceName : interfacesWithPathOnMethods) {
             if (!pathInterfaces.containsKey(interfaceName)) {
                 pathInterfaces.put(interfaceName, "");
             }
         }
+
+        Map<DotName, String> clientInterfaces = new HashMap<>(pathInterfaces);
 
         Map<DotName, String> clientInterfaceSubtypes = new HashMap<>();
         for (DotName interfaceName : clientInterfaces.keySet()) {

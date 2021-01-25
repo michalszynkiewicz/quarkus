@@ -1,5 +1,6 @@
 package io.quarkus.resteasy.reactive.client.deployment;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
@@ -20,9 +21,7 @@ import org.jboss.logging.Logger;
 import io.quarkus.arc.BeanDestroyer;
 import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
 import io.quarkus.arc.deployment.BeanArchiveIndexBuildItem;
-import io.quarkus.arc.deployment.BeanRegistrarBuildItem;
-import io.quarkus.arc.processor.BeanConfigurator;
-import io.quarkus.arc.processor.BeanRegistrar;
+import io.quarkus.arc.deployment.SyntheticBeanBuildItem;
 import io.quarkus.arc.processor.BuiltinScope;
 import io.quarkus.arc.processor.ScopeInfo;
 import io.quarkus.deployment.Capabilities;
@@ -32,8 +31,6 @@ import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
 import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
-import io.quarkus.gizmo.MethodDescriptor;
-import io.quarkus.gizmo.ResultHandle;
 import io.quarkus.rest.rest.client.microprofile.RestClientBase;
 import io.quarkus.rest.rest.client.microprofile.recorder.RestClientRecorder;
 
@@ -60,53 +57,35 @@ class ReactiveResteasyMpClientProcessor {
 
     // mstodo inject rest client class names from
     @BuildStep
-    void addRestClientBeans(Capabilities capabilities,
+    void addRestClientBeans(RestClientRecorder recorder,
+            Capabilities capabilities,
             CombinedIndexBuildItem combinedIndexBuildItem,
             BeanArchiveIndexBuildItem beanArchiveIndexBuildItem,
-            BuildProducer<BeanRegistrarBuildItem> beanRegistrars) {
+            BuildProducer<SyntheticBeanBuildItem> syntheticBeans) throws ClassNotFoundException {
 
         CompositeIndex index = CompositeIndex.create(beanArchiveIndexBuildItem.getIndex(), combinedIndexBuildItem.getIndex());
         Set<AnnotationInstance> registerRestClientAnnos = new HashSet<>(index.getAnnotations(REGISTER_REST_CLIENT));
 
         // mstodo try to replace with synthetic bean
-        beanRegistrars.produce(new BeanRegistrarBuildItem(new BeanRegistrar() {
+        for (AnnotationInstance registerRCAnnotation : registerRestClientAnnos) {
+            ClassInfo restClientInterface = registerRCAnnotation.target().asClass();
+            // The spec is not clear whether we should add superinterfaces too - let's keep aligned with SmallRye for now
 
-            @Override
-            public void register(RegistrationContext registrationContext) {
-                final Config config = ConfigProvider.getConfig();
+            final String configPrefix = computeConfigPrefix(restClientInterface.name(), registerRCAnnotation);
+            final ScopeInfo scope = computeDefaultScope(capabilities, ConfigProvider.getConfig(), restClientInterface,
+                    configPrefix);
+            DotName name = registerRCAnnotation.target().asClass().name();
+            AnnotationValue baseUriAnnotation = registerRCAnnotation.value("baseUri");
+            String baseUri = baseUriAnnotation != null ? baseUriAnnotation.asString() : "";
 
-                for (AnnotationInstance registerRCAnnotation : registerRestClientAnnos) {
-                    ClassInfo restClientInterface = registerRCAnnotation.target().asClass();
-                    DotName restClientName = restClientInterface.name();
-                    BeanConfigurator<Object> configurator = registrationContext.configure(restClientName);
-                    // The spec is not clear whether we should add superinterfaces too - let's keep aligned with SmallRye for now
-                    configurator.addType(restClientName);
-                    configurator.addQualifier(REST_CLIENT);
-
-                    final String configPrefix = computeConfigPrefix(restClientName, registerRCAnnotation);
-                    final ScopeInfo scope = computeDefaultScope(capabilities, config, restClientInterface, configPrefix);
-                    configurator.scope(scope);
-                    configurator.creator(m -> {
-                        // return new RestClientBase(proxyType, baseUri).create();
-                        ResultHandle interfaceHandle = m.loadClass(restClientName.toString());
-
-                        AnnotationValue baseUri = registerRCAnnotation.value("baseUri");
-
-                        ResultHandle baseUriHandle = m.load(baseUri != null ? baseUri.asString() : "");
-                        ResultHandle configPrefixHandle = m.load(configPrefix);
-                        ResultHandle baseHandle = m.newInstance(
-                                MethodDescriptor.ofConstructor(RestClientBase.class, Class.class, String.class, String.class),
-                                interfaceHandle, baseUriHandle, configPrefixHandle);
-                        ResultHandle ret = m.invokeVirtualMethod(
-                                MethodDescriptor.ofMethod(RestClientBase.class, "create", Object.class), baseHandle);
-                        m.returnValue(ret);
-                    });
-                    // mstodo sometimes we're getting duplicates here
-                    configurator.destroyer(BeanDestroyer.CloseableDestroyer.class);
-                    configurator.done();
-                }
-            }
-        }));
+            syntheticBeans.produce(SyntheticBeanBuildItem.configure(name)
+                    .qualifiers(AnnotationInstance.create(REST_CLIENT, null, Collections.emptyList()))
+                    .supplier(recorder.createRestClient(restClientInterface.name().toString(), baseUri, configPrefix);
+                    })
+                    .scope(scope)
+                    .destroyer(BeanDestroyer.CloseableDestroyer.class)
+                    .done());
+        }
     }
 
     private String computeConfigPrefix(DotName interfaceName, AnnotationInstance registerRestClientAnnotation) {
