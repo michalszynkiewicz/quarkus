@@ -248,7 +248,7 @@ public class JaxrsClientProcessor {
                             ctor.getMethodParam(0), ctor.load(restClientInterface.getPath())));
 
             for (JaxrsClientEnricherBuildItem enricher : enrichers) {
-                enricher.getEnricher().enrichGlobalWebTarget(ctor, globalTarget, interfaceClass, index);
+                enricher.getEnricher().forClass(ctor, globalTarget, interfaceClass, index);
             }
             ctor.writeInstanceField(targetFieldDescriptor, ctor.getThis(), globalTarget);
             ctor.returnValue(null);
@@ -358,7 +358,7 @@ public class JaxrsClientProcessor {
                     //            AssignableResultHandle methodWebTarget, IndexView index, BuildProducer<GeneratedClassBuildItem> generatedClasses,
                     //            int methodIndex);
                     // mstodo get rid of this, this is ugly, not the way it should be:
-                    enricher.getEnricher().enrichMethodWebTarget(methodCreator, interfaceClass, jandexMethod, target, index,
+                    enricher.getEnricher().forMethod(methodCreator, interfaceClass, jandexMethod, target, index,
                             generatedClassBuildItemBuildProducer, methodIndex);
                 }
 

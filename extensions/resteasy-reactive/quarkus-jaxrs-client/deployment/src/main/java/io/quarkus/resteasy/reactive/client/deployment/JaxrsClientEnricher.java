@@ -10,10 +10,10 @@ import io.quarkus.gizmo.AssignableResultHandle;
 import io.quarkus.gizmo.MethodCreator;
 
 public interface JaxrsClientEnricher {
-    void enrichGlobalWebTarget(MethodCreator ctor, AssignableResultHandle globalTarget, ClassInfo interfaceClass,
-            IndexView index);
+    void forClass(MethodCreator ctor, AssignableResultHandle globalTarget, ClassInfo interfaceClass,
+                  IndexView index);
 
-    void enrichMethodWebTarget(MethodCreator methodCreator, ClassInfo interfaceClass, MethodInfo method,
-            AssignableResultHandle methodWebTarget, IndexView index, BuildProducer<GeneratedClassBuildItem> generatedClasses,
-            int methodIndex);
+    void forMethod(MethodCreator methodCreator, ClassInfo interfaceClass, MethodInfo method,
+                   AssignableResultHandle methodWebTarget, IndexView index, BuildProducer<GeneratedClassBuildItem> generatedClasses,
+                   int methodIndex);
 }

@@ -1,6 +1,7 @@
 package io.quarkus.resteasy.reactive.client.deployment;
 
 import static io.quarkus.arc.processor.DotNames.STRING;
+import static io.quarkus.resteasy.reactive.client.deployment.ReactiveResteasyMpClientProcessor.REGISTER_REST_CLIENT;
 import static org.objectweb.asm.Opcodes.ACC_STATIC;
 
 import java.lang.reflect.Method;
@@ -33,6 +34,8 @@ import org.jboss.jandex.MethodInfo;
 import org.jboss.jandex.Type;
 import org.jboss.logging.Logger;
 
+import io.quarkus.arc.deployment.GeneratedBeanBuildItem;
+import io.quarkus.arc.deployment.GeneratedBeanGizmoAdaptor;
 import io.quarkus.deployment.GeneratedClassGizmoAdaptor;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.builditem.GeneratedClassBuildItem;
@@ -70,27 +73,53 @@ public class MicroProfileRestClientEnricher implements JaxrsClientEnricher {
     private static final DotName REGISTER_CLIENT_HEADERS = DotName.createSimple(RegisterClientHeaders.class.getName());
 
     private final Map<ClassInfo, String> interfaceMocks = new HashMap<>();
+    private final Map<ClassInfo, ClassCreator> cdiBeans = new HashMap<>();
 
+    // mstodo generate CDI class
     @Override
-    public void enrichGlobalWebTarget(MethodCreator ctor, AssignableResultHandle res, ClassInfo interfaceClass,
+    public void forClass(MethodCreator proxyConstructor, AssignableResultHandle res, ClassInfo interfaceClass,
+            IndexView index, BuildProducer<GeneratedBeanBuildItem> generatedBeans) {
+        alterJaxrsClientProxy(proxyConstructor, res, interfaceClass, index);
+
+        if (interfaceClass.classAnnotation(REGISTER_REST_CLIENT) != null) {
+            String className = interfaceClass.name().toString() + "$$CdiBean";
+            createCdiWrapper(interfaceClass, generatedBeans, className);
+        }
+    }
+    @Override
+    public void finish() {
+        for (ClassCreator value : cdiBeans.values()) {
+            value.close();
+        }
+    }
+
+    private void alterJaxrsClientProxy(MethodCreator proxyConstructor, AssignableResultHandle res, ClassInfo interfaceClass,
             IndexView index) {
         AnnotationInstance annotation = interfaceClass.classAnnotation(REGISTER_PROVIDER);
         AnnotationInstance groupAnnotation = interfaceClass.classAnnotation(REGISTER_PROVIDERS);
 
         if (annotation != null) {
-            addProvider(ctor, res, index, annotation);
+            addProvider(proxyConstructor, res, index, annotation);
         }
         for (AnnotationInstance annotationInstance : extractAnnotations(groupAnnotation)) {
-            addProvider(ctor, res, index, annotationInstance);
+            addProvider(proxyConstructor, res, index, annotationInstance);
         }
     }
 
     @Override
-    public void enrichMethodWebTarget(MethodCreator methodCreator, ClassInfo interfaceClass,
+    public void forMethod(MethodCreator methodCreator, ClassInfo interfaceClass,
             MethodInfo method, AssignableResultHandle methodWebTarget,
             IndexView index, BuildProducer<GeneratedClassBuildItem> generatedClasses,
             int methodIndex) {
+        alterJaxrsClientProxyMethod(methodCreator, interfaceClass, method, methodWebTarget, index, generatedClasses,
+                methodIndex);
 
+        addCdiBeanMethod(method);
+    }
+
+    private void alterJaxrsClientProxyMethod(MethodCreator methodCreator, ClassInfo interfaceClass, MethodInfo method,
+            AssignableResultHandle methodWebTarget, IndexView index, BuildProducer<GeneratedClassBuildItem> generatedClasses,
+            int methodIndex) {
         Map<String, AnnotationInstance> headerFillersByName = new HashMap<>();
 
         AnnotationInstance classLevelHeader = interfaceClass.classAnnotation(CLIENT_HEADER_PARAM);
@@ -334,6 +363,35 @@ public class MicroProfileRestClientEnricher implements JaxrsClientEnricher {
 
     private static boolean isString(Type type) {
         return type.kind() == Type.Kind.CLASS && type.name().toString().equals(String.class.getName());
+    }
+
+    private void createCdiWrapper(ClassInfo jaxrsInterface, BuildProducer<GeneratedBeanBuildItem> generatedBeans,
+            String className) {
+        ClassOutput classOutput = new GeneratedBeanGizmoAdaptor(generatedBeans);
+        ClassCreator classCreator = ClassCreator.builder().className(className)
+                .classOutput(classOutput)
+                .build();
+        cdiBeans.put(jaxrsInterface, classCreator);
+    }
+
+    private void addCdiBeanMethod(ClassInfo jaxrsInterface, String , MethodInfo method) {
+        ClassCreator classCreator = cdiBeans.get(jaxrsInterface);
+        MethodCreator methodCreator = classCreator.getMethodCreator(MethodDescriptor.of(method)); // mstodo like this but not this?
+        // mstodo copy annotations but PATH, etc
+
+        ResultHandle delegate = methodCreator.readInstanceField(FieldDescriptor.of(, "delegate", ""));
+        int parameterCount = method.parameters().size();
+        ResultHandle result;
+        if (parameterCount == 0) {
+            result = methodCreator.invokeVirtualMethod(method, delegate);
+        } else {
+            ResultHandle[] paramters = new ResultHandle[parameterCount];
+            for (int i = 0; i < parameterCount; i++) {
+                paramters[i] = methodCreator.getMethodParam(i);
+            }
+            result = methodCreator.invokeVirtualMethod(method, delegate, paramters);
+        }
+        methodCreator.returnValue(result);
     }
 
     private String mockInterface(ClassInfo declaringClass, BuildProducer<GeneratedClassBuildItem> generatedClass,

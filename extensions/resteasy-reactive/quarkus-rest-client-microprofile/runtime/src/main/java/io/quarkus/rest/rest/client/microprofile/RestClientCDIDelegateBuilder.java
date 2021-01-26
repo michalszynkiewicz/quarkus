@@ -28,7 +28,7 @@ import io.quarkus.arc.InstanceHandle;
 import io.quarkus.runtime.graal.DisabledSSLContext;
 import io.quarkus.runtime.ssl.SslContextConfiguration;
 
-public class RestClientBase {
+public class RestClientCDIDelegateBuilder {
 
     public static final String MP_REST = "mp-rest";
     public static final String REST_URL_FORMAT = "%s/" + MP_REST + "/url";
@@ -51,7 +51,7 @@ public class RestClientBase {
     private final String baseUriFromAnnotation;
     private final String propertyPrefix;
 
-    public RestClientBase(Class<?> proxyType, String baseUriFromAnnotation, String propertyPrefix) {
+    public RestClientCDIDelegateBuilder(Class<?> proxyType, String baseUriFromAnnotation, String propertyPrefix) {
         this.proxyType = proxyType;
         this.baseUriFromAnnotation = baseUriFromAnnotation;
         this.propertyPrefix = propertyPrefix;
