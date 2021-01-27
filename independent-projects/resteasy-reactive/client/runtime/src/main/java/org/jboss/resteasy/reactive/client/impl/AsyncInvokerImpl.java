@@ -5,6 +5,7 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -35,10 +36,11 @@ public class AsyncInvokerImpl implements AsyncInvoker, CompletionStageRxInvoker 
     final ClientRestHandler[] handlerChain;
     final ClientRestHandler[] abortHandlerChain;
     final ThreadSetupAction requestContext;
+    final ExecutorService customExecutorService;
 
     public AsyncInvokerImpl(ClientImpl restClient, HttpClient httpClient, URI uri, RequestSpec requestSpec,
             Map<String, Object> properties, ClientRestHandler[] handlerChain, ClientRestHandler[] abortHandlerChain,
-            ThreadSetupAction requestContext) {
+            ThreadSetupAction requestContext, ExecutorService customExecutorService) {
         this.restClient = restClient;
         this.httpClient = httpClient;
         this.uri = uri;
@@ -47,6 +49,7 @@ public class AsyncInvokerImpl implements AsyncInvoker, CompletionStageRxInvoker 
         this.handlerChain = handlerChain;
         this.abortHandlerChain = abortHandlerChain;
         this.requestContext = requestContext;
+        this.customExecutorService = customExecutorService;
     }
 
     public Map<String, Object> getProperties() {
@@ -255,7 +258,7 @@ public class AsyncInvokerImpl implements AsyncInvoker, CompletionStageRxInvoker 
             boolean registerBodyHandler) {
         RestClientRequestContext restClientRequestContext = new RestClientRequestContext(restClient, httpClient, httpMethodName,
                 uri, requestSpec.configuration, requestSpec.headers,
-                entity, responseType, registerBodyHandler, properties, handlerChain, abortHandlerChain, requestContext);
+                entity, responseType, registerBodyHandler, properties, handlerChain, abortHandlerChain, requestContext, customExecutorService);
         restClientRequestContext.run();
         return restClientRequestContext;
     }

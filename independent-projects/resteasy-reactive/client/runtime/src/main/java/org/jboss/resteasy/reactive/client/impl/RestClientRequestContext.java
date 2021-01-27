@@ -1,10 +1,5 @@
 package org.jboss.resteasy.reactive.client.impl;
 
-import io.vertx.core.MultiMap;
-import io.vertx.core.buffer.Buffer;
-import io.vertx.core.http.HttpClient;
-import io.vertx.core.http.HttpClientRequest;
-import io.vertx.core.http.HttpClientResponse;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
@@ -15,6 +10,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+
 import javax.ws.rs.RuntimeType;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.GenericEntity;
@@ -25,6 +22,7 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.ext.MessageBodyWriter;
 import javax.ws.rs.ext.ReaderInterceptor;
 import javax.ws.rs.ext.WriterInterceptor;
+
 import org.jboss.resteasy.reactive.client.spi.ClientRestHandler;
 import org.jboss.resteasy.reactive.common.core.AbstractResteasyReactiveContext;
 import org.jboss.resteasy.reactive.common.core.Serialisers;
@@ -32,6 +30,12 @@ import org.jboss.resteasy.reactive.common.jaxrs.ConfigurationImpl;
 import org.jboss.resteasy.reactive.common.jaxrs.ResponseImpl;
 import org.jboss.resteasy.reactive.common.util.CaseInsensitiveMap;
 import org.jboss.resteasy.reactive.spi.ThreadSetupAction;
+
+import io.vertx.core.MultiMap;
+import io.vertx.core.buffer.Buffer;
+import io.vertx.core.http.HttpClient;
+import io.vertx.core.http.HttpClientRequest;
+import io.vertx.core.http.HttpClientResponse;
 
 /**
  * This is a stateful invocation, you can't invoke it twice.
@@ -55,6 +59,7 @@ public class RestClientRequestContext extends AbstractResteasyReactiveContext<Re
     // see Javadoc of javax.ws.rs.client.Invocation or javax.ws.rs.client.SyncInvoker
     private final boolean checkSuccessfulFamily;
     private final CompletableFuture<ResponseImpl> result;
+    private final ExecutorService customExecutorService;
     /**
      * Only initialised if we have request or response filters
      */
@@ -79,7 +84,8 @@ public class RestClientRequestContext extends AbstractResteasyReactiveContext<Re
             Entity<?> entity, GenericType<?> responseType, boolean registerBodyHandler, Map<String, Object> properties,
             ClientRestHandler[] handlerChain,
             ClientRestHandler[] abortHandlerChain,
-            ThreadSetupAction requestContext) {
+            ThreadSetupAction requestContext,
+            ExecutorService customExecutorService) {
         super(handlerChain, abortHandlerChain, requestContext);
         this.restClient = restClient;
         this.httpClient = httpClient;
@@ -102,6 +108,7 @@ public class RestClientRequestContext extends AbstractResteasyReactiveContext<Re
         this.result = new CompletableFuture<>();
         // each invocation gets a new set of properties based on the JAX-RS invoker
         this.properties = new HashMap<>(properties);
+        this.customExecutorService = customExecutorService;
     }
 
     public void abort() {
@@ -191,6 +198,9 @@ public class RestClientRequestContext extends AbstractResteasyReactiveContext<Re
 
     @Override
     protected Executor getEventLoop() {
+        if (customExecutorService != null) {
+            return customExecutorService;
+        }
         if (httpClientRequest == null) {
             return restClient.getVertx().nettyEventLoopGroup().next();
         } else {

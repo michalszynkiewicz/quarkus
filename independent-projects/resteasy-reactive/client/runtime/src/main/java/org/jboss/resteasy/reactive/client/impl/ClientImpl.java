@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -76,6 +77,7 @@ public class ClientImpl implements Client {
     final ConfigurationImpl configuration;
     final HostnameVerifier hostnameVerifier;
     final SSLContext sslContext;
+    final ExecutorService executorService;
     private boolean isClosed;
     final ClientRestHandler[] handlerChain;
     final ClientRestHandler[] abortHandlerChain;
@@ -86,7 +88,8 @@ public class ClientImpl implements Client {
             String keystorePassword,
             Buffer keystore,
             Buffer trustStore,
-            SSLContext sslContext) {
+            SSLContext sslContext,
+            ExecutorService executorService) {
         // mstodo: ssl context
         // mstodo: hostnameVerifier
         this.configuration = configuration != null ? configuration : new ConfigurationImpl(RuntimeType.CLIENT);
@@ -127,6 +130,7 @@ public class ClientImpl implements Client {
         abortHandlerChain = new ClientRestHandler[] { new ClientErrorHandler() };
         handlerChain = new ClientRestHandler[] { new ClientRequestFiltersRestHandler(), new ClientSendRequestHandler(),
                 new ClientResponseRestHandler() };
+        this.executorService = executorService;
     }
 
     public ClientContext getClientContext() {
@@ -168,7 +172,7 @@ public class ClientImpl implements Client {
         abortIfClosed();
         Objects.requireNonNull(uriBuilder);
         return new WebTargetImpl(this, httpClient, uriBuilder, new ConfigurationImpl(configuration), handlerChain,
-                abortHandlerChain, null);
+                abortHandlerChain, null, executorService);
     }
 
     @Override

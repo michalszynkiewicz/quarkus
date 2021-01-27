@@ -6,6 +6,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -40,11 +41,12 @@ public class InvocationBuilderImpl implements Invocation.Builder {
     final ClientRestHandler[] handlerChain;
     final ClientRestHandler[] abortHandlerChain;
     final ThreadSetupAction requestContext;
+    final ExecutorService executorService;
 
     public InvocationBuilderImpl(URI uri, ClientImpl restClient, HttpClient httpClient,
             WebTargetImpl target,
             ConfigurationImpl configuration, ClientRestHandler[] handlerChain,
-            ClientRestHandler[] abortHandlerChain, ThreadSetupAction requestContext) {
+            ClientRestHandler[] abortHandlerChain, ThreadSetupAction requestContext, ExecutorService executorService) {
         this.uri = uri;
         this.restClient = restClient;
         this.httpClient = httpClient;
@@ -53,6 +55,7 @@ public class InvocationBuilderImpl implements Invocation.Builder {
         this.handlerChain = handlerChain;
         this.abortHandlerChain = abortHandlerChain;
         this.requestContext = requestContext;
+        this.executorService = executorService;
     }
 
     @Override
@@ -88,7 +91,7 @@ public class InvocationBuilderImpl implements Invocation.Builder {
     @Override
     public AsyncInvokerImpl async() {
         return new AsyncInvokerImpl(restClient, httpClient, uri, requestSpec,
-                properties, handlerChain, abortHandlerChain, requestContext);
+                properties, handlerChain, abortHandlerChain, requestContext, executorService);
     }
 
     @Override
@@ -160,7 +163,7 @@ public class InvocationBuilderImpl implements Invocation.Builder {
     @Override
     public CompletionStageRxInvoker rx() {
         return new AsyncInvokerImpl(restClient, httpClient, uri, requestSpec,
-                properties, handlerChain, abortHandlerChain, requestContext);
+                properties, handlerChain, abortHandlerChain, requestContext, executorService);
     }
 
     @Override
@@ -171,7 +174,7 @@ public class InvocationBuilderImpl implements Invocation.Builder {
         RxInvokerProvider<?> invokerProvider = requestSpec.configuration.getRxInvokerProvider(clazz);
         if (invokerProvider != null) {
             // FIXME: should pass the Quarkus executor here, but MP-CP or not?
-            return (T) invokerProvider.getRxInvoker(this, null);
+            return (T) invokerProvider.getRxInvoker(this, executorService);
         }
         // TCK says we could throw IllegalStateException, or not, it doesn't discriminate, and the spec doesn't say
         return null;
