@@ -47,17 +47,23 @@ public class RestClientCDIDelegateBuilder {
     public static final String REST_NOOP_HOSTNAME_VERIFIER = "io.quarkus.restclient.NoopHostnameVerifier";
     public static final String TLS_TRUST_ALL = "quarkus.tls.trust-all";
 
-    private final Class<?> proxyType;
+    private final Class<?> jaxrsInterface;
     private final String baseUriFromAnnotation;
     private final String propertyPrefix;
 
-    public RestClientCDIDelegateBuilder(Class<?> proxyType, String baseUriFromAnnotation, String propertyPrefix) {
-        this.proxyType = proxyType;
+    // used by generated code
+    @SuppressWarnings("unused")
+    public static Object createDelegate(Class<?> jaxrsInterface, String baseUriFromAnnotation, String propertyPrefix) {
+        return new RestClientCDIDelegateBuilder(jaxrsInterface, baseUriFromAnnotation, propertyPrefix).build();
+    }
+
+    private RestClientCDIDelegateBuilder(Class<?> jaxrsInterface, String baseUriFromAnnotation, String propertyPrefix) {
+        this.jaxrsInterface = jaxrsInterface;
         this.baseUriFromAnnotation = baseUriFromAnnotation;
         this.propertyPrefix = propertyPrefix;
     }
 
-    public Object create() {
+    private Object build() {
         RestClientBuilder builder = RestClientBuilder.newBuilder();
         configureBaseUrl(builder);
         configureTimeouts(builder);
@@ -69,7 +75,7 @@ public class RestClientCDIDelegateBuilder {
             builder.executorService(managedExecutor.get());
         }
 
-        Object result = builder.build(proxyType);
+        Object result = builder.build(jaxrsInterface);
         return result;
     }
 
@@ -260,7 +266,7 @@ public class RestClientCDIDelegateBuilder {
 
     private <T> Optional<T> getOptionalDynamicProperty(String propertyFormat, Class<T> type) {
         final Config config = ConfigProvider.getConfig();
-        Optional<T> interfaceNameValue = config.getOptionalValue(String.format(propertyFormat, proxyType.getName()), type);
+        Optional<T> interfaceNameValue = config.getOptionalValue(String.format(propertyFormat, jaxrsInterface.getName()), type);
         return interfaceNameValue.isPresent() ? interfaceNameValue
                 : config.getOptionalValue(String.format(propertyFormat, propertyPrefix), type);
     }

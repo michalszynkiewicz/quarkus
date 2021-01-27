@@ -13,12 +13,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 
 import javax.ws.rs.RuntimeType;
+import javax.ws.rs.client.AsyncInvoker;
+import javax.ws.rs.client.CompletionStageRxInvoker;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
+import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.MediaType;
 
 import org.jboss.jandex.AnnotationInstance;
@@ -27,6 +31,7 @@ import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.IndexView;
 import org.jboss.jandex.MethodInfo;
+import org.jboss.jandex.ParameterizedType;
 import org.jboss.jandex.Type;
 import org.jboss.resteasy.reactive.client.impl.ClientImpl;
 import org.jboss.resteasy.reactive.client.impl.WebTargetImpl;
@@ -47,6 +52,8 @@ import org.jboss.resteasy.reactive.common.processor.scanning.ResteasyReactiveSca
 
 import io.quarkus.arc.deployment.BeanArchiveIndexBuildItem;
 import io.quarkus.arc.deployment.BeanContainerBuildItem;
+import io.quarkus.arc.processor.MethodDescriptors;
+import io.quarkus.arc.processor.Types;
 import io.quarkus.deployment.GeneratedClassGizmoAdaptor;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
@@ -83,6 +90,9 @@ import io.quarkus.resteasy.reactive.spi.MessageBodyWriterBuildItem;
 import io.quarkus.runtime.RuntimeValue;
 
 public class JaxrsClientProcessor {
+
+    // mstodo pull out all dotnames to a separate class
+    private static final DotName COMPLETION_STAGE = DotName.createSimple(CompletionStage.class.getName());
 
     public static final MethodDescriptor STRING_REPLACE_METHOD = MethodDescriptor.ofMethod(String.class, "replace",
             String.class,
@@ -268,7 +278,7 @@ public class JaxrsClientProcessor {
                 methodIndex++;
                 String[] javaMethodParameters = Arrays.stream(method.getParameters()).map(s -> s.type)
                         .toArray(String[]::new);
-                MethodCreator methodCreator = c.getMethodCreator(method.getName(), method.getReturnType(),
+                MethodCreator methodCreator = c.getMethodCreator(method.getName(), method.getSimpleReturnType(),
                         javaMethodParameters);
                 MethodInfo jandexMethod = getJavaMethod(interfaceClass, method, javaMethodParameters, index)
                         .orElseThrow(() -> new RuntimeException(
@@ -385,6 +395,44 @@ public class JaxrsClientProcessor {
 
                 //TODO: async return types
 
+                Type returnType = jandexMethod.returnType();
+                boolean completionStage = false;
+                String simpleReturnType = method.getSimpleReturnType();
+
+                ResultHandle genericReturnType = null;
+                if (returnType.kind() == Type.Kind.PARAMETERIZED_TYPE) {
+                    ResultHandle currentThread = methodCreator.invokeStaticMethod(MethodDescriptors.THREAD_CURRENT_THREAD);
+
+                    ParameterizedType paramType = returnType.asParameterizedType();
+                    if (paramType.name().equals(COMPLETION_STAGE)) {
+                        completionStage = true;
+
+                        // CompletionStage has one type argument:
+                        if (paramType.arguments().isEmpty()) {
+                            simpleReturnType = Object.class.getName();
+                        } else {
+                            Type type = paramType.arguments().get(0);
+                            if (type.kind() == Type.Kind.PARAMETERIZED_TYPE) {
+                                ResultHandle tccl = methodCreator.invokeVirtualMethod(MethodDescriptors.THREAD_GET_TCCL,
+                                        currentThread);
+                                genericReturnType = Types.getParameterizedType(methodCreator, tccl, type.asParameterizedType());
+                            } else {
+                                simpleReturnType = type.toString();
+                            }
+                        }
+                        /// mstodo is this needed? returnType.asParameterizedType().arguments().iterator().next();
+                    } else {
+
+                        ResultHandle tccl = methodCreator.invokeVirtualMethod(MethodDescriptors.THREAD_GET_TCCL, currentThread);
+                        ResultHandle parameterizedType = Types.getParameterizedType(methodCreator, tccl,
+                                paramType);
+
+                        genericReturnType = methodCreator.newInstance(
+                                MethodDescriptor.ofConstructor(GenericType.class, java.lang.reflect.Type.class),
+                                parameterizedType);
+                    }
+                }
+
                 ResultHandle result;
                 String mediaTypeValue = MediaType.APPLICATION_JSON;
                 if (bodyParameterIdx != null) {
@@ -407,17 +455,77 @@ public class JaxrsClientProcessor {
                             MethodDescriptor.ofMethod(Entity.class, "entity", Entity.class, Object.class, MediaType.class),
                             methodCreator.getMethodParam(bodyParameterIdx),
                             mediaType);
-                    result = methodCreator.invokeInterfaceMethod(
-                            MethodDescriptor.ofMethod(Invocation.Builder.class, "method", Object.class, String.class,
-                                    Entity.class, Class.class),
-                            builder, methodCreator.load(method.getHttpMethod()), entity,
-                            methodCreator.loadClass(method.getSimpleReturnType()));
+
+                    if (completionStage) {
+                        ResultHandle async = methodCreator.invokeInterfaceMethod(
+                                MethodDescriptor.ofMethod(Invocation.Builder.class, "async", AsyncInvoker.class),
+                                builder);
+                        // with entity
+                        if (genericReturnType != null) {
+                            result = methodCreator.invokeInterfaceMethod(
+                                    MethodDescriptor.ofMethod(CompletionStageRxInvoker.class, "method",
+                                            CompletionStage.class, String.class,
+                                            Entity.class, GenericType.class),
+                                    async, methodCreator.load(method.getHttpMethod()), entity,
+                                    genericReturnType);
+                        } else {
+                            result = methodCreator.invokeInterfaceMethod(
+                                    MethodDescriptor.ofMethod(CompletionStageRxInvoker.class, "method", CompletionStage.class,
+                                            String.class,
+                                            Entity.class, Class.class),
+                                    async, methodCreator.load(method.getHttpMethod()), entity,
+                                    methodCreator.loadClass(simpleReturnType));
+                        }
+                    } else {
+                        if (genericReturnType != null) {
+                            // mstodo for async types use .async().get() instead of method()
+                            result = methodCreator.invokeInterfaceMethod(
+                                    MethodDescriptor.ofMethod(Invocation.Builder.class, "method", Object.class, String.class,
+                                            Entity.class, GenericType.class),
+                                    builder, methodCreator.load(method.getHttpMethod()), entity,
+                                    genericReturnType);
+                        } else {
+                            result = methodCreator.invokeInterfaceMethod(
+                                    MethodDescriptor.ofMethod(Invocation.Builder.class, "method", Object.class, String.class,
+                                            Entity.class, Class.class),
+                                    builder, methodCreator.load(method.getHttpMethod()), entity,
+                                    methodCreator.loadClass(simpleReturnType));
+                        }
+                    }
                 } else {
-                    result = methodCreator.invokeInterfaceMethod(
-                            MethodDescriptor.ofMethod(Invocation.Builder.class, "method", Object.class, String.class,
-                                    Class.class),
-                            builder, methodCreator.load(method.getHttpMethod()),
-                            methodCreator.loadClass(method.getSimpleReturnType()));
+
+                    if (completionStage) {
+                        ResultHandle async = methodCreator.invokeInterfaceMethod(
+                                MethodDescriptor.ofMethod(Invocation.Builder.class, "async", AsyncInvoker.class),
+                                builder);
+                        if (genericReturnType != null) {
+                            result = methodCreator.invokeInterfaceMethod(
+                                    MethodDescriptor.ofMethod(CompletionStageRxInvoker.class, "method",
+                                            CompletionStage.class, String.class,
+                                            GenericType.class),
+                                    async, methodCreator.load(method.getHttpMethod()), genericReturnType);
+                        } else {
+                            result = methodCreator.invokeInterfaceMethod(
+                                    MethodDescriptor.ofMethod(CompletionStageRxInvoker.class, "method", CompletionStage.class,
+                                            String.class,
+                                            Class.class),
+                                    async, methodCreator.load(method.getHttpMethod()),
+                                    methodCreator.loadClass(simpleReturnType));
+                        }
+                    } else {
+                        if (genericReturnType != null) {
+                            result = methodCreator.invokeInterfaceMethod(
+                                    MethodDescriptor.ofMethod(Invocation.Builder.class, "method", Object.class, String.class,
+                                            GenericType.class),
+                                    builder, methodCreator.load(method.getHttpMethod()), genericReturnType);
+                        } else {
+                            result = methodCreator.invokeInterfaceMethod(
+                                    MethodDescriptor.ofMethod(Invocation.Builder.class, "method", Object.class, String.class,
+                                            Class.class),
+                                    builder, methodCreator.load(method.getHttpMethod()),
+                                    methodCreator.loadClass(simpleReturnType));
+                        }
+                    }
                 }
                 methodCreator.returnValue(result);
             }

@@ -73,6 +73,9 @@ public class RestClientBuilderImpl implements RestClientBuilder {
 
     @Override
     public RestClientBuilder executorService(ExecutorService executor) {
+        if (executor == null) {
+            throw new IllegalArgumentException("Executor service cannot be null");
+        }
         clientBuilder.executorService(executor);
         return this;
     }
@@ -138,6 +141,8 @@ public class RestClientBuilderImpl implements RestClientBuilder {
 
     @Override
     public <T> T build(Class<T> aClass) throws IllegalStateException, RestClientDefinitionException {
+        RestClientListeners.get().forEach(listener -> listener.onNewClient(aClass, this));
+
         ClientImpl client = (ClientImpl) clientBuilder.build();
         WebTargetImpl target = null;
         try {
@@ -145,6 +150,7 @@ public class RestClientBuilderImpl implements RestClientBuilder {
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException("Invalid Rest Client URL: " + url, e);
         }
+
         return target.proxy(aClass);
     }
 }

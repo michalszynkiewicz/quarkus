@@ -1,6 +1,11 @@
 package io.quarkus.resteasy.reactive.client.deployment;
 
+import static org.jboss.resteasy.reactive.common.processor.scanning.ResteasyReactiveScanner.BUILTIN_HTTP_ANNOTATIONS_TO_METHOD;
+
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -11,18 +16,17 @@ import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.jandex.AnnotationInstance;
+import org.jboss.jandex.AnnotationTarget;
 import org.jboss.jandex.AnnotationValue;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.CompositeIndex;
 import org.jboss.jandex.DotName;
+import org.jboss.jandex.MethodInfo;
 import org.jboss.logging.Logger;
 
-import io.quarkus.arc.BeanDestroyer;
 import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
-import io.quarkus.arc.deployment.BeanArchiveIndexBuildItem;
-import io.quarkus.arc.deployment.BeanRegistrarBuildItem;
-import io.quarkus.arc.processor.BeanConfigurator;
-import io.quarkus.arc.processor.BeanRegistrar;
+import io.quarkus.arc.deployment.GeneratedBeanBuildItem;
+import io.quarkus.arc.deployment.GeneratedBeanGizmoAdaptor;
 import io.quarkus.arc.processor.BuiltinScope;
 import io.quarkus.arc.processor.ScopeInfo;
 import io.quarkus.deployment.Capabilities;
@@ -32,6 +36,9 @@ import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
 import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
+import io.quarkus.gizmo.ClassCreator;
+import io.quarkus.gizmo.FieldDescriptor;
+import io.quarkus.gizmo.MethodCreator;
 import io.quarkus.gizmo.MethodDescriptor;
 import io.quarkus.gizmo.ResultHandle;
 import io.quarkus.rest.rest.client.microprofile.RestClientCDIDelegateBuilder;
@@ -44,6 +51,8 @@ class ReactiveResteasyMpClientProcessor {
     private static final DotName REST_CLIENT = DotName.createSimple(RestClient.class.getName());
     private static final DotName REGISTER_REST_CLIENT = DotName.createSimple(RegisterRestClient.class.getName());
     private static final DotName SESSION_SCOPED = DotName.createSimple(SessionScoped.class.getName());
+    private static final String DELEGATE = "delegate";
+    private static final String CREATE_DELEGATE = "createDelegate";
 
     @BuildStep
     @Record(ExecutionTime.STATIC_INIT)
@@ -62,51 +71,105 @@ class ReactiveResteasyMpClientProcessor {
     @BuildStep
     void addRestClientBeans(Capabilities capabilities,
             CombinedIndexBuildItem combinedIndexBuildItem,
-            BeanArchiveIndexBuildItem beanArchiveIndexBuildItem,
-            BuildProducer<BeanRegistrarBuildItem> beanRegistrars) {
+            BuildProducer<GeneratedBeanBuildItem> generatedBeans) {
 
-        CompositeIndex index = CompositeIndex.create(beanArchiveIndexBuildItem.getIndex(), combinedIndexBuildItem.getIndex());
+        CompositeIndex index = CompositeIndex.create(combinedIndexBuildItem.getIndex());
         Set<AnnotationInstance> registerRestClientAnnos = new HashSet<>(index.getAnnotations(REGISTER_REST_CLIENT));
 
-        // mstodo try to replace with synthetic bean
-        beanRegistrars.produce(new BeanRegistrarBuildItem(new BeanRegistrar() {
+        for (AnnotationInstance registerRestClient : registerRestClientAnnos) {
+            ClassInfo jaxrsInterface = registerRestClient.target().asClass();
+            if (Modifier.isAbstract(jaxrsInterface.flags())) {
 
-            @Override
-            public void register(RegistrationContext registrationContext) {
-                final Config config = ConfigProvider.getConfig();
+                List<MethodInfo> restMethods = new ArrayList<>();
 
-                for (AnnotationInstance registerRCAnnotation : registerRestClientAnnos) {
-                    ClassInfo restClientInterface = registerRCAnnotation.target().asClass();
-                    DotName restClientName = restClientInterface.name();
-                    BeanConfigurator<Object> configurator = registrationContext.configure(restClientName);
-                    // The spec is not clear whether we should add superinterfaces too - let's keep aligned with SmallRye for now
-                    configurator.addType(restClientName);
-                    configurator.addQualifier(REST_CLIENT);
+                for (MethodInfo method : jaxrsInterface.methods()) {
+                    if (isRestMethod(method)) {
+                        restMethods.add(method);
+                    }
+                }
+                if (restMethods.isEmpty()) {
+                    continue;
+                }
 
-                    final String configPrefix = computeConfigPrefix(restClientName, registerRCAnnotation);
-                    final ScopeInfo scope = computeDefaultScope(capabilities, config, restClientInterface, configPrefix);
-                    configurator.scope(scope);
-                    configurator.creator(m -> {
-                        // return new RestClientBase(proxyType, baseUri).create();
-                        ResultHandle interfaceHandle = m.loadClass(restClientName.toString());
+                try (ClassCreator classCreator = ClassCreator.builder()
+                        .className(jaxrsInterface.name().toString() + "$$CDIWrapper")
+                        .classOutput(new GeneratedBeanGizmoAdaptor(generatedBeans))
+                        .interfaces(jaxrsInterface.name().toString())
+                        .build()) {
 
-                        AnnotationValue baseUri = registerRCAnnotation.value("baseUri");
+                    // CLASS LEVEL
+                    final String configPrefix = computeConfigPrefix(jaxrsInterface.name(), registerRestClient);
+                    final ScopeInfo scope = computeDefaultScope(capabilities, ConfigProvider.getConfig(), jaxrsInterface,
+                            configPrefix);
+                    classCreator.addAnnotation(scope.getDotName().toString());
+                    classCreator.addAnnotation(RestClient.class);
 
-                        ResultHandle baseUriHandle = m.load(baseUri != null ? baseUri.asString() : "");
-                        ResultHandle configPrefixHandle = m.load(configPrefix);
-                        ResultHandle baseHandle = m.newInstance(
-                                MethodDescriptor.ofConstructor(RestClientCDIDelegateBuilder.class, Class.class, String.class, String.class),
-                                interfaceHandle, baseUriHandle, configPrefixHandle);
-                        ResultHandle ret = m.invokeVirtualMethod(
-                                MethodDescriptor.ofMethod(RestClientCDIDelegateBuilder.class, "create", Object.class), baseHandle);
-                        m.returnValue(ret);
-                    });
-                    // mstodo sometimes we're getting duplicates here
-                    configurator.destroyer(BeanDestroyer.CloseableDestroyer.class);
-                    configurator.done();
+                    FieldDescriptor delegateField = FieldDescriptor.of(classCreator.getClassName(), DELEGATE,
+                            jaxrsInterface.name().toString());
+                    classCreator.getFieldCreator(delegateField).setModifiers(Modifier.FINAL | Modifier.PRIVATE);
+
+                    // CONSTRUCTOR:
+                    // mstodo move to @PostConstruct if doesn't work
+                    MethodCreator constructor = classCreator
+                            .getMethodCreator(MethodDescriptor.ofConstructor(classCreator.getClassName()));
+                    constructor.invokeSpecialMethod(MethodDescriptor.ofConstructor(Object.class), constructor.getThis());
+                    ResultHandle interfaceHandle = constructor.loadClass(jaxrsInterface.toString());
+
+                    AnnotationValue baseUri = registerRestClient.value("baseUri");
+
+                    ResultHandle baseUriHandle = constructor.load(baseUri != null ? baseUri.asString() : "");
+                    ResultHandle configPrefixHandle = constructor.load(configPrefix);
+
+                    MethodDescriptor createDelegate = MethodDescriptor.ofMethod(RestClientCDIDelegateBuilder.class,
+                            CREATE_DELEGATE, Object.class, Class.class, String.class, String.class);
+
+                    constructor.writeInstanceField(delegateField, constructor.getThis(),
+                            constructor.invokeStaticMethod(createDelegate, interfaceHandle, baseUriHandle,
+                                    configPrefixHandle));
+                    constructor.returnValue(null);
+
+                    // METHODS:
+                    for (MethodInfo method : restMethods) {
+                        // mstodo like this but not this?
+                        MethodCreator methodCreator = classCreator.getMethodCreator(MethodDescriptor.of(method));
+
+                        method.annotations()
+                                .stream()
+                                .filter(a -> a.target().kind() == AnnotationTarget.Kind.METHOD)
+                                .filter(a -> !BUILTIN_HTTP_ANNOTATIONS_TO_METHOD.containsKey(a.name()))
+                                .forEach(methodCreator::addAnnotation);
+
+                        ResultHandle delegate = methodCreator.readInstanceField(delegateField, methodCreator.getThis());
+
+                        int parameterCount = method.parameters().size();
+                        ResultHandle result;
+                        if (parameterCount == 0) {
+                            result = methodCreator.invokeInterfaceMethod(method, delegate);
+                        } else {
+                            ResultHandle[] params = new ResultHandle[parameterCount];
+                            for (int i = 0; i < parameterCount; i++) {
+                                params[i] = methodCreator.getMethodParam(i);
+                            }
+                            result = methodCreator.invokeInterfaceMethod(method, delegate, params);
+                        }
+                        methodCreator.returnValue(result);
+                    }
                 }
             }
-        }));
+        }
+    }
+
+    private boolean isRestMethod(MethodInfo method) {
+        if (!Modifier.isAbstract(method.flags())) {
+            return false;
+        }
+        for (AnnotationInstance annotation : method.annotations()) {
+            if (annotation.target().kind() == AnnotationTarget.Kind.METHOD
+                    && BUILTIN_HTTP_ANNOTATIONS_TO_METHOD.containsKey(annotation.name())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String computeConfigPrefix(DotName interfaceName, AnnotationInstance registerRestClientAnnotation) {

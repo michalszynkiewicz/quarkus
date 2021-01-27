@@ -11,9 +11,9 @@ import io.quarkus.gizmo.MethodCreator;
 
 public interface JaxrsClientEnricher {
     void forClass(MethodCreator ctor, AssignableResultHandle globalTarget, ClassInfo interfaceClass,
-                  IndexView index);
+            IndexView index);
 
     void forMethod(MethodCreator methodCreator, ClassInfo interfaceClass, MethodInfo method,
-                   AssignableResultHandle methodWebTarget, IndexView index, BuildProducer<GeneratedClassBuildItem> generatedClasses,
-                   int methodIndex);
+            AssignableResultHandle methodWebTarget, IndexView index, BuildProducer<GeneratedClassBuildItem> generatedClasses,
+            int methodIndex);
 }

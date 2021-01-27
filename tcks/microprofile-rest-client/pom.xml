@@ -42,6 +42,11 @@
                         <!-- ConversationScope not supported in Quarkus -->
                         <exclude>org.eclipse.microprofile.rest.client.tck.cditests.HasConversationScopeTest</exclude>
 
+                        <!-- we have a newer version of the test in the code -->
+                        <!-- remove our test and remove this once https://github.com/eclipse/microprofile-rest-client/pull/300 gets -->
+                        <!-- into a release -->
+                        <exclude>org.eclipse.microprofile.rest.client.tck.cditests.CDIInterceptorTest</exclude>
+
                         <!-- We have our own version of these tests which set up a config environment -->
                         <exclude>org.eclipse.microprofile.rest.client.tck.InvokeWithJsonBProviderTest</exclude>
                         <exclude>org.eclipse.microprofile.rest.client.tck.InvokeWithJsonPProviderTest</exclude>
