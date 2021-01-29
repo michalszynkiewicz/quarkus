@@ -37,7 +37,6 @@ public class ClientBuilderImpl extends ClientBuilder {
     private KeyStore keyStore;
     private char[] keystorePassword;
     private HostnameVerifier hostnameVerifier;
-    private ExecutorService executorService;
 
     @Override
     public ClientBuilder withConfig(Configuration config) {
@@ -74,7 +73,6 @@ public class ClientBuilderImpl extends ClientBuilder {
 
     @Override
     public ClientBuilder executorService(ExecutorService executorService) {
-        this.executorService = executorService;
         return this;
     }
 
@@ -109,8 +107,7 @@ public class ClientBuilderImpl extends ClientBuilder {
                 keystorePassword == null ? null : new String(keystorePassword),
                 keyStore,
                 trustStore,
-                sslContext,
-                executorService);
+                sslContext);
 
     }
 
