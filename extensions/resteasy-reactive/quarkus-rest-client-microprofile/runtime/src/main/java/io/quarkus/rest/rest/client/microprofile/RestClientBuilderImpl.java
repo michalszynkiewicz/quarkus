@@ -96,49 +96,110 @@ public class RestClientBuilderImpl implements RestClientBuilder {
 
     @Override
     public RestClientBuilder register(Class<?> componentClass) {
-        clientBuilder.register(componentClass);
+        if (AsyncInvocationInterceptorFactory.class.isAssignableFrom(componentClass)) {
+            try {
+                asyncInvocationFactories
+                        .add((AsyncInvocationInterceptorFactory) componentClass.getDeclaredConstructor().newInstance());
+            } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+                throw new IllegalArgumentException("The " + componentClass
+                        + " cannot be instantiated as an AsyncInvocationInterceptorFactory." +
+                        " Does it have a public no-arg constructor?");
+            }
+        } else {
+            clientBuilder.register(componentClass);
+        }
         return this;
     }
 
     @Override
     public RestClientBuilder register(Class<?> componentClass, int priority) {
-        clientBuilder.register(componentClass, priority);
+        // TODO do we need to support priorities for the factories?
+        if (AsyncInvocationInterceptorFactory.class.isAssignableFrom(componentClass)) {
+            try {
+                asyncInvocationFactories
+                        .add((AsyncInvocationInterceptorFactory) componentClass.getDeclaredConstructor().newInstance());
+            } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+                throw new IllegalArgumentException("The " + componentClass
+                        + " cannot be instantiated as an AsyncInvocationInterceptorFactory." +
+                        " Does it have a public no-arg constructor?");
+            }
+        } else {
+            clientBuilder.register(componentClass, priority);
+        }
         return this;
     }
 
     @Override
     public RestClientBuilder register(Class<?> componentClass, Class<?>... contracts) {
-        clientBuilder.register(componentClass, contracts);
+        if (AsyncInvocationInterceptorFactory.class.isAssignableFrom(componentClass)) {
+            try {
+                asyncInvocationFactories
+                        .add((AsyncInvocationInterceptorFactory) componentClass.getDeclaredConstructor().newInstance());
+            } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+                throw new IllegalArgumentException("The " + componentClass
+                        + " cannot be instantiated as an AsyncInvocationInterceptorFactory." +
+                        " Does it have a public no-arg constructor?");
+            }
+        } else {
+            clientBuilder.register(componentClass, contracts);
+        }
         return this;
     }
 
     @Override
     public RestClientBuilder register(Class<?> componentClass, Map<Class<?>, Integer> contracts) {
-        clientBuilder.register(componentClass, contracts);
+        if (AsyncInvocationInterceptorFactory.class.isAssignableFrom(componentClass)) {
+            try {
+                asyncInvocationFactories
+                        .add((AsyncInvocationInterceptorFactory) componentClass.getDeclaredConstructor().newInstance());
+            } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+                throw new IllegalArgumentException("The " + componentClass
+                        + " cannot be instantiated as an AsyncInvocationInterceptorFactory." +
+                        " Does it have a public no-arg constructor?");
+            }
+        } else {
+            clientBuilder.register(componentClass, contracts);
+        }
         return this;
     }
 
     @Override
     public RestClientBuilder register(Object component) {
-        clientBuilder.register(component);
+        if (component instanceof AsyncInvocationInterceptorFactory) {
+            asyncInvocationFactories.add((AsyncInvocationInterceptorFactory) component);
+        } else {
+            clientBuilder.register(component);
+        }
         return this;
     }
 
     @Override
     public RestClientBuilder register(Object component, int priority) {
-        clientBuilder.register(component, priority);
+        if (component instanceof AsyncInvocationInterceptorFactory) {
+            asyncInvocationFactories.add((AsyncInvocationInterceptorFactory) component);
+        } else {
+            clientBuilder.register(component, priority);
+        }
         return this;
     }
 
     @Override
     public RestClientBuilder register(Object component, Class<?>... contracts) {
-        clientBuilder.register(component, contracts);
+        if (component instanceof AsyncInvocationInterceptorFactory) {
+            asyncInvocationFactories.add((AsyncInvocationInterceptorFactory) component);
+        } else {
+            clientBuilder.register(component, contracts);
+        }
         return this;
     }
 
     @Override
     public RestClientBuilder register(Object component, Map<Class<?>, Integer> contracts) {
-        clientBuilder.register(component, contracts);
+        if (component instanceof AsyncInvocationInterceptorFactory) {
+            asyncInvocationFactories.add((AsyncInvocationInterceptorFactory) component);
+        } else {
+            clientBuilder.register(component, contracts);
+        }
         return this;
     }
 
@@ -153,6 +214,13 @@ public class RestClientBuilderImpl implements RestClientBuilder {
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException("Invalid Rest Client URL: " + url, e);
         }
+
+        AsyncHandlerProvider provider = AsyncHandlerProvider.NO_OP;
+        if (!asyncInvocationFactories.isEmpty()) {
+            provider = new AsyncHandlerProvider.Impl(asyncInvocationFactories);
+
+        }
+        target = target.property(AsyncHandlerProvider.class.getName(), provider);
 
         return target.proxy(aClass);
     }

@@ -18,7 +18,7 @@ import io.smallrye.common.constraint.Nullable;
 
 // mstodo a test for it that also runs in native
 @Priority(Integer.MIN_VALUE)
-public class MicroProfileRestClientFilter implements ClientRequestFilter {
+public class MicroProfileRestClientRequestFilter implements ClientRequestFilter {
     private static final MultivaluedMap<String, String> EMPTY_MAP = new MultivaluedHashMap<>();
 
     @Nullable
@@ -28,25 +28,32 @@ public class MicroProfileRestClientFilter implements ClientRequestFilter {
 
     @Nullable
     private final Method method;
+    private final AsyncHandlerProvider.Handler handler;
 
+    // mstodo update javadoc
     /**
      *
      * @param headerFiller fills headers as specified in @ClientHeaderParam annotations
      * @param headersFactory MP Rest Client headersFactory
      * @param method java method of the JAX-RS interface
      */
-    public MicroProfileRestClientFilter(@Nullable HeaderFiller headerFiller,
+    public MicroProfileRestClientRequestFilter(@Nullable HeaderFiller headerFiller,
             @NotNull ClientHeadersFactory headersFactory,
-            // mstodo provide method only if some property is set
-            @Nullable Method method) {
+            // TODO maybe we could skip it if we wanted to have a switch to speed things up
+            // TODO 2 method should be cached on the class level so that there's no need to "create" it each time?
+            @NotNull Method method,
+            @NotNull AsyncHandlerProvider.Handler handler) {
         this.headerFiller = headerFiller;
         this.headersFactory = headersFactory;
         this.method = method;
+        this.handler = handler;
     }
 
     // for each method, register one such filter
     @Override
     public void filter(ClientRequestContext requestContext) {
+        handler.start();
+
         // mutable collection of headers
         MultivaluedMap<String, String> headers = new MultivaluedHashMap<>();
 

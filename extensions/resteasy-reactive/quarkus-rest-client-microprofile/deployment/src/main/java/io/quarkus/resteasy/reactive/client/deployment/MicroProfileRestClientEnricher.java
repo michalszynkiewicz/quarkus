@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.ws.rs.core.Configurable;
+import javax.ws.rs.core.Configuration;
 import javax.ws.rs.core.MultivaluedMap;
 
 import org.eclipse.microprofile.rest.client.RestClientDefinitionException;
@@ -47,8 +48,10 @@ import io.quarkus.gizmo.MethodCreator;
 import io.quarkus.gizmo.MethodDescriptor;
 import io.quarkus.gizmo.ResultHandle;
 import io.quarkus.gizmo.TryBlock;
+import io.quarkus.rest.rest.client.microprofile.AsyncHandlerProvider;
 import io.quarkus.rest.rest.client.microprofile.HeaderFiller;
-import io.quarkus.rest.rest.client.microprofile.MicroProfileRestClientFilter;
+import io.quarkus.rest.rest.client.microprofile.MicroProfileRestClientRequestFilter;
+import io.quarkus.rest.rest.client.microprofile.MicroProfileRestClientResponseFilter;
 import io.quarkus.rest.rest.client.microprofile.NoOpHeaderFiller;
 import io.quarkus.runtime.util.HashUtil;
 
@@ -172,14 +175,32 @@ class MicroProfileRestClientEnricher implements JaxrsClientEnricher {
                 MethodDescriptor.ofMethod(Class.class, "getMethod", Method.class, String.class, Class[].class),
                 interfaceClassHandle, methodCreator.load(method.name()), parameterArray);
 
+        ResultHandle configuration = methodCreator.invokeInterfaceMethod(
+                MethodDescriptor.ofMethod(Configurable.class, "getConfiguration", Configuration.class),
+                methodWebTarget);
+        ResultHandle asyncHandlerProvider = methodCreator.invokeInterfaceMethod(
+                MethodDescriptor.ofMethod(Configuration.class, "getProperty", Object.class, String.class),
+                configuration, methodCreator.load(AsyncHandlerProvider.class.getName()));
+        ResultHandle asyncHandler = methodCreator.invokeInterfaceMethod(
+                MethodDescriptor.ofMethod(AsyncHandlerProvider.class, "get", AsyncHandlerProvider.Handler.class),
+                asyncHandlerProvider);
+
         ResultHandle restClientFilter = methodCreator.newInstance(
-                MethodDescriptor.ofConstructor(MicroProfileRestClientFilter.class, HeaderFiller.class,
-                        ClientHeadersFactory.class, Method.class),
-                headerFiller, clientHeadersFactory, javaMethodHandle);
+                MethodDescriptor.ofConstructor(MicroProfileRestClientRequestFilter.class, HeaderFiller.class,
+                        ClientHeadersFactory.class, Method.class, AsyncHandlerProvider.Handler.class),
+                headerFiller, clientHeadersFactory, javaMethodHandle, asyncHandler);
 
         methodCreator.assign(methodWebTarget, methodCreator.invokeInterfaceMethod(
                 MethodDescriptor.ofMethod(Configurable.class, "register", Configurable.class, Object.class),
                 methodWebTarget, restClientFilter));
+
+        ResultHandle restClientResponseFilter = methodCreator.newInstance(
+                MethodDescriptor.ofConstructor(MicroProfileRestClientResponseFilter.class, AsyncHandlerProvider.Handler.class),
+                asyncHandler);
+
+        methodCreator.assign(methodWebTarget, methodCreator.invokeInterfaceMethod(
+                MethodDescriptor.ofMethod(Configurable.class, "register", Configurable.class, Object.class),
+                methodWebTarget, restClientResponseFilter));
     }
 
     private void putAllHeaderAnnotations(Map<String, AnnotationInstance> headerMap, AnnotationInstance[] annotations) {
