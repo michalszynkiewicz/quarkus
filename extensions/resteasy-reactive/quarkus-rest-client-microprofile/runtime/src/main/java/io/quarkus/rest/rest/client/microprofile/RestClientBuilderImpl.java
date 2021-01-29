@@ -1,6 +1,5 @@
 package io.quarkus.rest.rest.client.microprofile;
 
-import java.lang.reflect.InvocationTargetException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.security.KeyStore;
@@ -19,6 +18,7 @@ import javax.ws.rs.core.Configuration;
 import org.eclipse.microprofile.rest.client.RestClientBuilder;
 import org.eclipse.microprofile.rest.client.RestClientDefinitionException;
 import org.eclipse.microprofile.rest.client.ext.AsyncInvocationInterceptorFactory;
+import org.jboss.resteasy.reactive.client.api.InvalidRestClientDefinitionException;
 import org.jboss.resteasy.reactive.client.impl.ClientBuilderImpl;
 import org.jboss.resteasy.reactive.client.impl.ClientImpl;
 import org.jboss.resteasy.reactive.client.impl.WebTargetImpl;
@@ -153,7 +153,10 @@ public class RestClientBuilderImpl implements RestClientBuilder {
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException("Invalid Rest Client URL: " + url, e);
         }
-
-        return target.proxy(aClass);
+        try {
+            return target.proxy(aClass);
+        } catch (InvalidRestClientDefinitionException e) {
+            throw new RestClientDefinitionException(e);
+        }
     }
 }

@@ -1,13 +1,16 @@
 package org.jboss.resteasy.reactive.client.impl;
 
-import io.vertx.core.Vertx;
 import java.util.Collections;
 import java.util.function.Supplier;
+
 import javax.ws.rs.RuntimeType;
+
 import org.jboss.resteasy.reactive.client.spi.ClientContext;
 import org.jboss.resteasy.reactive.client.spi.ClientContextResolver;
 import org.jboss.resteasy.reactive.common.core.GenericTypeMapping;
 import org.jboss.resteasy.reactive.common.core.Serialisers;
+
+import io.vertx.core.Vertx;
 
 public class DefaultClientContext implements ClientContext {
 
@@ -26,7 +29,7 @@ public class DefaultClientContext implements ClientContext {
     public DefaultClientContext() {
         serialisers = new ClientSerialisers();
         serialisers.registerBuiltins(RuntimeType.CLIENT);
-        clientProxies = new ClientProxies(Collections.emptyMap());
+        clientProxies = new ClientProxies(Collections.emptyMap(), Collections.emptyMap());
         genericTypeMapping = new GenericTypeMapping();
     }
 

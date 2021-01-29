@@ -37,6 +37,7 @@ import org.jboss.resteasy.reactive.client.impl.ClientImpl;
 import org.jboss.resteasy.reactive.client.impl.WebTargetImpl;
 import org.jboss.resteasy.reactive.common.core.GenericTypeMapping;
 import org.jboss.resteasy.reactive.common.core.Serialisers;
+import org.jboss.resteasy.reactive.common.model.MaybeRestClientInterface;
 import org.jboss.resteasy.reactive.common.model.MethodParameter;
 import org.jboss.resteasy.reactive.common.model.ParameterType;
 import org.jboss.resteasy.reactive.common.model.ResourceMethod;
@@ -134,7 +135,7 @@ public class JaxrsClientProcessor {
 
         if (resourceScanningResultBuildItem == null
                 || resourceScanningResultBuildItem.getResult().getClientInterfaces().isEmpty()) {
-            recorder.setupClientProxies(new HashMap<>());
+            recorder.setupClientProxies(new HashMap<>(), Collections.emptyMap());
             return;
         }
         ResourceScanningResult result = resourceScanningResultBuildItem.getResult();
@@ -158,23 +159,26 @@ public class JaxrsClientProcessor {
                 .setHasRuntimeConverters(false).build();
 
         Map<String, RuntimeValue<Function<WebTarget, ?>>> clientImplementations = new HashMap<>();
+        Map<String, String> failures = new HashMap<>();
         for (Map.Entry<DotName, String> i : result.getClientInterfaces().entrySet()) {
             ClassInfo clazz = index.getClassByName(i.getKey());
             //these interfaces can also be clients
             //so we generate client proxies for them
-            RestClientInterface clientProxy = clientEndpointIndexer.createClientProxy(clazz,
+            MaybeRestClientInterface maybeClientProxy = clientEndpointIndexer.createClientProxy(clazz,
                     i.getValue());
-            if (clientProxy != null) {
+            if (maybeClientProxy.isOkay()) {
+                RestClientInterface clientProxy = maybeClientProxy.getRestClientInterface();
                 RuntimeValue<Function<WebTarget, ?>> proxyProvider = generateClientInvoker(recorderContext, clientProxy,
                         enricherBuildItems, generatedClassBuildItemBuildProducer, clazz, index);
                 if (proxyProvider != null) {
                     clientImplementations.put(clientProxy.getClassName(), proxyProvider);
                 }
+            } else {
+                failures.put(clazz.name().toString(), maybeClientProxy.getFailure());
             }
-
         }
 
-        recorder.setupClientProxies(clientImplementations);
+        recorder.setupClientProxies(clientImplementations, failures);
 
         for (AdditionalReaderWriter.Entry additionalReader : additionalReaders.get()) {
             Class readerClass = additionalReader.getHandlerClass();
