@@ -138,7 +138,8 @@ public final class Types {
         }
     }
 
-    public static ResultHandle getParameterizedType(BytecodeCreator creator, ResultHandle tccl, ParameterizedType parameterizedType) {
+    public static ResultHandle getParameterizedType(BytecodeCreator creator, ResultHandle tccl,
+            ParameterizedType parameterizedType) {
         List<Type> arguments = parameterizedType.arguments();
         ResultHandle typeArgsHandle = creator.newArray(java.lang.reflect.Type.class, creator.load(arguments.size()));
         for (int i = 0; i < arguments.size(); i++) {

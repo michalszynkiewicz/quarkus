@@ -1,6 +1,5 @@
 package org.jboss.resteasy.reactive.client.impl;
 
-import io.vertx.core.buffer.Buffer;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -9,6 +8,10 @@ import java.io.Reader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.Map;
+
+import javax.json.JsonArray;
+import javax.json.JsonObject;
+import javax.json.JsonValue;
 import javax.ws.rs.RuntimeType;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.client.Entity;
@@ -17,6 +20,7 @@ import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.ext.MessageBodyWriter;
 import javax.ws.rs.ext.ReaderInterceptor;
 import javax.ws.rs.ext.WriterInterceptor;
+
 import org.jboss.resteasy.reactive.client.providers.serialisers.ClientDefaultTextPlainBodyHandler;
 import org.jboss.resteasy.reactive.common.core.Serialisers;
 import org.jboss.resteasy.reactive.common.jaxrs.ConfigurationImpl;
@@ -30,6 +34,11 @@ import org.jboss.resteasy.reactive.common.providers.serialisers.InputStreamMessa
 import org.jboss.resteasy.reactive.common.providers.serialisers.NumberMessageBodyHandler;
 import org.jboss.resteasy.reactive.common.providers.serialisers.ReaderBodyHandler;
 import org.jboss.resteasy.reactive.common.providers.serialisers.StringMessageBodyHandler;
+import org.jboss.resteasy.reactive.common.providers.serialisers.jsonp.JsonArrayHandler;
+import org.jboss.resteasy.reactive.common.providers.serialisers.jsonp.JsonObjectHandler;
+import org.jboss.resteasy.reactive.common.providers.serialisers.jsonp.JsonValueHandler;
+
+import io.vertx.core.buffer.Buffer;
 
 public class ClientSerialisers extends Serialisers {
 
@@ -50,6 +59,9 @@ public class ClientSerialisers extends Serialisers {
             new BuiltinReader(MultivaluedMap.class, FormUrlEncodedProvider.class, MediaType.APPLICATION_FORM_URLENCODED,
                     RuntimeType.CLIENT),
             new BuiltinReader(Object.class, ClientDefaultTextPlainBodyHandler.class, MediaType.TEXT_PLAIN, RuntimeType.CLIENT),
+            new BuiltinReader(JsonArray.class, JsonArrayHandler.class, MediaType.APPLICATION_JSON, RuntimeType.CLIENT),
+            new BuiltinReader(JsonObject.class, JsonObjectHandler.class, MediaType.APPLICATION_JSON, RuntimeType.CLIENT),
+            new BuiltinReader(JsonValue.class, JsonValueHandler.class, MediaType.APPLICATION_JSON, RuntimeType.CLIENT)
     };
     public static BuiltinWriter[] BUILTIN_WRITERS = new BuiltinWriter[] {
             new BuiltinWriter(String.class, StringMessageBodyHandler.class,

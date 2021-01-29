@@ -33,7 +33,7 @@
         <!-- TCKs are adding SessionScope to some beans, so we need this capability to support it -->
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-undertow</artifactId>
+            <artifactId>quarkus-resteasy-reactive-servlet</artifactId>
         </dependency>
     </dependencies>
 

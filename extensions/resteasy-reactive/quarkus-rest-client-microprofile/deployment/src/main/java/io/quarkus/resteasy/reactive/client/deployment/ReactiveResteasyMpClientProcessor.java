@@ -130,8 +130,22 @@ class ReactiveResteasyMpClientProcessor {
 
                     // METHODS:
                     for (MethodInfo method : restMethods) {
-                        // mstodo like this but not this?
                         MethodCreator methodCreator = classCreator.getMethodCreator(MethodDescriptor.of(method));
+
+                        for (AnnotationInstance annotation : method.annotations()) {
+                            if (annotation.target().kind() == AnnotationTarget.Kind.METHOD
+                                    && !BUILTIN_HTTP_ANNOTATIONS_TO_METHOD.containsKey(annotation.name())) {
+                                AnnotationValue value = annotation.value();
+                                if (value != null && value.kind() == AnnotationValue.Kind.ARRAY
+                                        && value.componentKind() == AnnotationValue.Kind.NESTED) {
+                                    for (AnnotationInstance annotationInstance : value.asNestedArray()) {
+                                        methodCreator.addAnnotation(annotationInstance);
+                                    }
+                                } else {
+                                    methodCreator.addAnnotation(annotation);
+                                }
+                            }
+                        }
 
                         method.annotations()
                                 .stream()

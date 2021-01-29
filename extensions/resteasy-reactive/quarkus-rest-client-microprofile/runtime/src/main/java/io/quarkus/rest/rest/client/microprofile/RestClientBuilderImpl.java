@@ -3,6 +3,8 @@ package io.quarkus.rest.rest.client.microprofile;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.security.KeyStore;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -15,6 +17,8 @@ import javax.ws.rs.core.Configuration;
 
 import org.eclipse.microprofile.rest.client.RestClientBuilder;
 import org.eclipse.microprofile.rest.client.RestClientDefinitionException;
+import org.eclipse.microprofile.rest.client.ext.AsyncInvocationInterceptorFactory;
+import org.jboss.resteasy.reactive.client.api.InvalidRestClientDefinitionException;
 import org.jboss.resteasy.reactive.client.impl.ClientBuilderImpl;
 import org.jboss.resteasy.reactive.client.impl.ClientImpl;
 import org.jboss.resteasy.reactive.client.impl.WebTargetImpl;
@@ -28,6 +32,7 @@ public class RestClientBuilderImpl implements RestClientBuilder {
     private URL url;
 
     private final ClientBuilder clientBuilder = new ClientBuilderImpl().withConfig(new ConfigurationImpl(RuntimeType.CLIENT));
+    private List<AsyncInvocationInterceptorFactory> asyncInvocationFactories = new ArrayList<>();
 
     @Override
     public RestClientBuilder baseUrl(URL url) {
@@ -73,11 +78,9 @@ public class RestClientBuilderImpl implements RestClientBuilder {
 
     @Override
     public RestClientBuilder executorService(ExecutorService executor) {
-        if (executor == null) {
-            throw new IllegalArgumentException("Executor service cannot be null");
-        }
-        clientBuilder.executorService(executor);
-        return this;
+        throw new IllegalArgumentException("Specifying executor service is not supported. " +
+                "The underlying call in RestEasy Reactive is non-blocking, " +
+                "there is no reason to offload the call to a separate thread pool.");
     }
 
     @Override
@@ -150,7 +153,10 @@ public class RestClientBuilderImpl implements RestClientBuilder {
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException("Invalid Rest Client URL: " + url, e);
         }
-
-        return target.proxy(aClass);
+        try {
+            return target.proxy(aClass);
+        } catch (InvalidRestClientDefinitionException e) {
+            throw new RestClientDefinitionException(e);
+        }
     }
 }

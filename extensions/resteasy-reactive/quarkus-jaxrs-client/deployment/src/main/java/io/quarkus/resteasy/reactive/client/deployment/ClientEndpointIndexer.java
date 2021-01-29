@@ -21,6 +21,7 @@ import org.jboss.jandex.IndexView;
 import org.jboss.jandex.MethodInfo;
 import org.jboss.jandex.Type;
 import org.jboss.resteasy.reactive.common.model.InjectableBean;
+import org.jboss.resteasy.reactive.common.model.MaybeRestClientInterface;
 import org.jboss.resteasy.reactive.common.model.MethodParameter;
 import org.jboss.resteasy.reactive.common.model.ParameterType;
 import org.jboss.resteasy.reactive.common.model.ResourceMethod;
@@ -49,7 +50,7 @@ public class ClientEndpointIndexer
         super(builder);
     }
 
-    public RestClientInterface createClientProxy(ClassInfo classInfo,
+    public MaybeRestClientInterface createClientProxy(ClassInfo classInfo,
             String path) {
         try {
             RestClientInterface clazz = new RestClientInterface();
@@ -66,12 +67,13 @@ public class ClientEndpointIndexer
             List<ResourceMethod> methods = createEndpoints(classInfo, classInfo, new HashSet<>(),
                     clazz.getPathParameters());
             clazz.getMethods().addAll(methods);
-            return clazz;
+            return MaybeRestClientInterface.success(clazz);
         } catch (Exception e) {
             //kinda bogus, but we just ignore failed interfaces for now
             //they can have methods that are not valid until they are actually extended by a concrete type
+
             log.warn("Ignoring interface for creating client proxy" + classInfo.name(), e);
-            return null;
+            return MaybeRestClientInterface.failure(e.getMessage());
         }
     }
 

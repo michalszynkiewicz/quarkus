@@ -144,7 +144,6 @@ public class ResteasyReactiveScanner {
                     }
                 }
             } else if (annotation.target().kind() == AnnotationTarget.Kind.METHOD) {
-                System.out.println("found path annotation on ");
                 ClassInfo clazz = annotation.target().asMethod().declaringClass();
                 if (Modifier.isInterface(clazz.flags())) {
                     interfacesWithPathOnMethods.add(clazz.name());
@@ -152,6 +151,7 @@ public class ResteasyReactiveScanner {
             }
         }
 
+        // for clients it is enought to have @PATH annotations on methods only
         for (DotName interfaceName : interfacesWithPathOnMethods) {
             if (!pathInterfaces.containsKey(interfaceName)) {
                 pathInterfaces.put(interfaceName, "");
@@ -187,6 +187,22 @@ public class ResteasyReactiveScanner {
                 continue;
             }
             httpAnnotationToMethod.put(httpMethodInstance.target().asClass().name(), httpMethodInstance.value().asString());
+        }
+
+        // for clients it is also enough to only have @GET, @POST, etc on methods and no PATH whatsoever
+        Set<DotName> methodAnnotations = httpAnnotationToMethod.keySet();
+        for (DotName methodAnnotation : methodAnnotations) {
+            for (AnnotationInstance methodAnnotationInstance : index.getAnnotations(methodAnnotation)) {
+                if (methodAnnotationInstance.target().kind() == AnnotationTarget.Kind.METHOD) {
+                    MethodInfo annotatedMethod = methodAnnotationInstance.target().asMethod();
+                    ClassInfo classWithJaxrsMethod = annotatedMethod.declaringClass();
+                    if (Modifier.isAbstract(annotatedMethod.flags())
+                            && Modifier.isAbstract(classWithJaxrsMethod.flags())
+                            && !clientInterfaces.containsKey(classWithJaxrsMethod.name())) {
+                        clientInterfaces.put(classWithJaxrsMethod.name(), "");
+                    }
+                }
+            }
         }
 
         Set<String> beanParams = new HashSet<>();

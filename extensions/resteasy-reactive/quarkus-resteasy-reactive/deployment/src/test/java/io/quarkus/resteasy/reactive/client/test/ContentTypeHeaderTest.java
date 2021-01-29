@@ -21,7 +21,6 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import io.quarkus.test.QuarkusUnitTest;
 import io.quarkus.test.common.http.TestHTTPResource;
 
-
 // TODO: pull out RuntimeDelegateImpl to common and move the tests to client's deployment
 class ContentTypeHeaderTest {
 

@@ -50,6 +50,7 @@
                         <!-- We have our own version of these tests which set up a config environment -->
                         <exclude>org.eclipse.microprofile.rest.client.tck.InvokeWithJsonBProviderTest</exclude>
                         <exclude>org.eclipse.microprofile.rest.client.tck.InvokeWithJsonPProviderTest</exclude>
+                        <exclude>org.eclipse.microprofile.rest.client.tck.InvalidInterfaceTest</exclude>
 
                         <!-- The connection timeout is too small -->
                         <exclude>org/eclipse/microprofile/rest/client/tck/timeout/*.java</exclude>
@@ -109,14 +110,6 @@
 <!--            <groupId>io.quarkus</groupId>-->
 <!--            <artifactId>quarkus-resteasy-reactive-jackson</artifactId>-->
 <!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>io.quarkus</groupId>-->
-<!--            <artifactId>quarkus-jsonp</artifactId>-->
-<!--        </dependency>-->
-<!--        <dependency>
-            <groupId>org.jboss.resteasy</groupId>
-            <artifactId>resteasy-json-p-provider</artifactId>
-        </dependency>-->
 <!--        <dependency>-->
 <!--            <groupId>io.quarkus</groupId>-->
 <!--            <artifactId>quarkus-jsonb</artifactId>-->

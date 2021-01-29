@@ -25,8 +25,6 @@ import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.MediaType;
 
-import org.jboss.jandex.AnnotationInstance;
-import org.jboss.jandex.AnnotationTarget;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.IndexView;
@@ -37,6 +35,7 @@ import org.jboss.resteasy.reactive.client.impl.ClientImpl;
 import org.jboss.resteasy.reactive.client.impl.WebTargetImpl;
 import org.jboss.resteasy.reactive.common.core.GenericTypeMapping;
 import org.jboss.resteasy.reactive.common.core.Serialisers;
+import org.jboss.resteasy.reactive.common.model.MaybeRestClientInterface;
 import org.jboss.resteasy.reactive.common.model.MethodParameter;
 import org.jboss.resteasy.reactive.common.model.ParameterType;
 import org.jboss.resteasy.reactive.common.model.ResourceMethod;
@@ -48,7 +47,6 @@ import org.jboss.resteasy.reactive.common.processor.AdditionalReaders;
 import org.jboss.resteasy.reactive.common.processor.AdditionalWriters;
 import org.jboss.resteasy.reactive.common.processor.ResteasyReactiveDotNames;
 import org.jboss.resteasy.reactive.common.processor.scanning.ResourceScanningResult;
-import org.jboss.resteasy.reactive.common.processor.scanning.ResteasyReactiveScanner;
 
 import io.quarkus.arc.deployment.BeanArchiveIndexBuildItem;
 import io.quarkus.arc.deployment.BeanContainerBuildItem;
@@ -134,7 +132,7 @@ public class JaxrsClientProcessor {
 
         if (resourceScanningResultBuildItem == null
                 || resourceScanningResultBuildItem.getResult().getClientInterfaces().isEmpty()) {
-            recorder.setupClientProxies(new HashMap<>());
+            recorder.setupClientProxies(new HashMap<>(), Collections.emptyMap());
             return;
         }
         ResourceScanningResult result = resourceScanningResultBuildItem.getResult();
@@ -158,23 +156,26 @@ public class JaxrsClientProcessor {
                 .setHasRuntimeConverters(false).build();
 
         Map<String, RuntimeValue<Function<WebTarget, ?>>> clientImplementations = new HashMap<>();
+        Map<String, String> failures = new HashMap<>();
         for (Map.Entry<DotName, String> i : result.getClientInterfaces().entrySet()) {
             ClassInfo clazz = index.getClassByName(i.getKey());
             //these interfaces can also be clients
             //so we generate client proxies for them
-            RestClientInterface clientProxy = clientEndpointIndexer.createClientProxy(clazz,
+            MaybeRestClientInterface maybeClientProxy = clientEndpointIndexer.createClientProxy(clazz,
                     i.getValue());
-            if (clientProxy != null) {
+            if (maybeClientProxy.isOkay()) {
+                RestClientInterface clientProxy = maybeClientProxy.getRestClientInterface();
                 RuntimeValue<Function<WebTarget, ?>> proxyProvider = generateClientInvoker(recorderContext, clientProxy,
                         enricherBuildItems, generatedClassBuildItemBuildProducer, clazz, index);
                 if (proxyProvider != null) {
                     clientImplementations.put(clientProxy.getClassName(), proxyProvider);
                 }
+            } else {
+                failures.put(clazz.name().toString(), maybeClientProxy.getFailure());
             }
-
         }
 
-        recorder.setupClientProxies(clientImplementations);
+        recorder.setupClientProxies(clientImplementations, failures);
 
         for (AdditionalReaderWriter.Entry additionalReader : additionalReaders.get()) {
             Class readerClass = additionalReader.getHandlerClass();
@@ -288,15 +289,6 @@ public class JaxrsClientProcessor {
 
                 methodCreator.assign(target, methodCreator.readInstanceField(targetFieldDescriptor, methodCreator.getThis()));
 
-                // copy all annotations but JAX-RS annotations from interface method to the implementation method
-                for (AnnotationInstance annotation : jandexMethod.annotations()) {
-                    if (annotation.target().kind() == AnnotationTarget.Kind.METHOD) {
-                        if (!ResteasyReactiveScanner.BUILTIN_HTTP_ANNOTATIONS_TO_METHOD.containsKey(annotation.name())) {
-                            methodCreator.addAnnotation(annotation);
-                        }
-                    }
-                }
-
                 Integer bodyParameterIdx = null;
 
                 Map<MethodDescriptor, ResultHandle> invocationBuilderEnrichers = new HashMap<>();
@@ -401,7 +393,6 @@ public class JaxrsClientProcessor {
 
                 ResultHandle genericReturnType = null;
                 if (returnType.kind() == Type.Kind.PARAMETERIZED_TYPE) {
-                    ResultHandle currentThread = methodCreator.invokeStaticMethod(MethodDescriptors.THREAD_CURRENT_THREAD);
 
                     ParameterizedType paramType = returnType.asParameterizedType();
                     if (paramType.name().equals(COMPLETION_STAGE)) {
@@ -413,6 +404,8 @@ public class JaxrsClientProcessor {
                         } else {
                             Type type = paramType.arguments().get(0);
                             if (type.kind() == Type.Kind.PARAMETERIZED_TYPE) {
+                                ResultHandle currentThread = methodCreator
+                                        .invokeStaticMethod(MethodDescriptors.THREAD_CURRENT_THREAD);
                                 ResultHandle tccl = methodCreator.invokeVirtualMethod(MethodDescriptors.THREAD_GET_TCCL,
                                         currentThread);
                                 genericReturnType = Types.getParameterizedType(methodCreator, tccl, type.asParameterizedType());
@@ -422,7 +415,7 @@ public class JaxrsClientProcessor {
                         }
                         /// mstodo is this needed? returnType.asParameterizedType().arguments().iterator().next();
                     } else {
-
+                        ResultHandle currentThread = methodCreator.invokeStaticMethod(MethodDescriptors.THREAD_CURRENT_THREAD);
                         ResultHandle tccl = methodCreator.invokeVirtualMethod(MethodDescriptors.THREAD_GET_TCCL, currentThread);
                         ResultHandle parameterizedType = Types.getParameterizedType(methodCreator, tccl,
                                 paramType);
@@ -529,7 +522,6 @@ public class JaxrsClientProcessor {
                 }
                 methodCreator.returnValue(result);
             }
-
         }
         String creatorName = restClientInterface.getClassName() + "$$QuarkusRestClientInterfaceCreator";
         try (ClassCreator c = new ClassCreator(new GeneratedClassGizmoAdaptor(generatedClassBuildItemBuildProducer, true),
