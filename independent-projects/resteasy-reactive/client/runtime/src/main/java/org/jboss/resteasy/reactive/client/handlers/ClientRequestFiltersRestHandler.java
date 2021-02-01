@@ -1,8 +1,10 @@
 package org.jboss.resteasy.reactive.client.handlers;
 
 import java.util.List;
+
 import javax.ws.rs.ProcessingException;
 import javax.ws.rs.client.ClientRequestFilter;
+
 import org.jboss.resteasy.reactive.client.impl.ClientRequestContextImpl;
 import org.jboss.resteasy.reactive.client.impl.RestClientRequestContext;
 import org.jboss.resteasy.reactive.client.spi.ClientRestHandler;
@@ -18,7 +20,11 @@ public class ClientRequestFiltersRestHandler implements ClientRestHandler {
                 try {
                     filter.filter(requestContext);
                 } catch (Exception x) {
-                    throw new ProcessingException(x);
+                    if (x.getMessage() != null) {
+                        throw new ProcessingException(x.getMessage(), x);
+                    } else {
+                        throw new ProcessingException(x);
+                    }
                 }
                 if (requestContext.getAbortedWith() != null) {
                     context.setResponseStatus(requestContext.getAbortedWith().getStatus());

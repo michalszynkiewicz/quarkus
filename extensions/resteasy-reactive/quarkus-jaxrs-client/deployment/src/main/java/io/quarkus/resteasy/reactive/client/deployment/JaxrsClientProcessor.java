@@ -25,8 +25,6 @@ import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.MediaType;
 
-import org.jboss.jandex.AnnotationInstance;
-import org.jboss.jandex.AnnotationTarget;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.IndexView;
@@ -49,7 +47,6 @@ import org.jboss.resteasy.reactive.common.processor.AdditionalReaders;
 import org.jboss.resteasy.reactive.common.processor.AdditionalWriters;
 import org.jboss.resteasy.reactive.common.processor.ResteasyReactiveDotNames;
 import org.jboss.resteasy.reactive.common.processor.scanning.ResourceScanningResult;
-import org.jboss.resteasy.reactive.common.processor.scanning.ResteasyReactiveScanner;
 
 import io.quarkus.arc.deployment.BeanArchiveIndexBuildItem;
 import io.quarkus.arc.deployment.BeanContainerBuildItem;
@@ -292,15 +289,6 @@ public class JaxrsClientProcessor {
 
                 methodCreator.assign(target, methodCreator.readInstanceField(targetFieldDescriptor, methodCreator.getThis()));
 
-                // copy all annotations but JAX-RS annotations from interface method to the implementation method
-                for (AnnotationInstance annotation : jandexMethod.annotations()) {
-                    if (annotation.target().kind() == AnnotationTarget.Kind.METHOD) {
-                        if (!ResteasyReactiveScanner.BUILTIN_HTTP_ANNOTATIONS_TO_METHOD.containsKey(annotation.name())) {
-                            methodCreator.addAnnotation(annotation);
-                        }
-                    }
-                }
-
                 Integer bodyParameterIdx = null;
 
                 Map<MethodDescriptor, ResultHandle> invocationBuilderEnrichers = new HashMap<>();
@@ -534,7 +522,6 @@ public class JaxrsClientProcessor {
                 }
                 methodCreator.returnValue(result);
             }
-
         }
         String creatorName = restClientInterface.getClassName() + "$$QuarkusRestClientInterfaceCreator";
         try (ClassCreator c = new ClassCreator(new GeneratedClassGizmoAdaptor(generatedClassBuildItemBuildProducer, true),
