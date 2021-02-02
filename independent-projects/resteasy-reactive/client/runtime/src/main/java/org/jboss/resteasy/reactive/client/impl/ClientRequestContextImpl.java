@@ -233,6 +233,10 @@ public class ClientRequestContextImpl implements ClientRequestContext {
         restClientRequestContext.setAbortedWith(response);
     }
 
+    public RestClientRequestContext getRestClientRequestContext() {
+        return restClientRequestContext;
+    }
+
     public Response getAbortedWith() {
         return restClientRequestContext.getAbortedWith();
     }

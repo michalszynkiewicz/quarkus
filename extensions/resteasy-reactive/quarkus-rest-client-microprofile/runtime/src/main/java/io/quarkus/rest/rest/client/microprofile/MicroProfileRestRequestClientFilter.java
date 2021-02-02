@@ -18,7 +18,7 @@ import io.smallrye.common.constraint.Nullable;
 
 // mstodo a test for it that also runs in native
 @Priority(Integer.MIN_VALUE)
-public class MicroProfileRestClientFilter implements ClientRequestFilter {
+public class MicroProfileRestRequestClientFilter implements ClientRequestFilter {
     private static final MultivaluedMap<String, String> EMPTY_MAP = new MultivaluedHashMap<>();
 
     @Nullable
@@ -35,7 +35,7 @@ public class MicroProfileRestClientFilter implements ClientRequestFilter {
      * @param headersFactory MP Rest Client headersFactory
      * @param method java method of the JAX-RS interface
      */
-    public MicroProfileRestClientFilter(@Nullable HeaderFiller headerFiller,
+    public MicroProfileRestRequestClientFilter(@Nullable HeaderFiller headerFiller,
             @NotNull ClientHeadersFactory headersFactory,
             // mstodo provide method only if some property is set
             @Nullable Method method) {

@@ -48,7 +48,7 @@ import io.quarkus.gizmo.MethodDescriptor;
 import io.quarkus.gizmo.ResultHandle;
 import io.quarkus.gizmo.TryBlock;
 import io.quarkus.rest.rest.client.microprofile.HeaderFiller;
-import io.quarkus.rest.rest.client.microprofile.MicroProfileRestClientFilter;
+import io.quarkus.rest.rest.client.microprofile.MicroProfileRestRequestClientFilter;
 import io.quarkus.rest.rest.client.microprofile.NoOpHeaderFiller;
 import io.quarkus.runtime.util.HashUtil;
 
@@ -173,7 +173,7 @@ class MicroProfileRestClientEnricher implements JaxrsClientEnricher {
                 interfaceClassHandle, methodCreator.load(method.name()), parameterArray);
 
         ResultHandle restClientFilter = methodCreator.newInstance(
-                MethodDescriptor.ofConstructor(MicroProfileRestClientFilter.class, HeaderFiller.class,
+                MethodDescriptor.ofConstructor(MicroProfileRestRequestClientFilter.class, HeaderFiller.class,
                         ClientHeadersFactory.class, Method.class),
                 headerFiller, clientHeadersFactory, javaMethodHandle);
 
