@@ -10,13 +10,17 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 
+import javax.ws.rs.ProcessingException;
 import javax.ws.rs.RuntimeType;
+import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.client.AsyncInvoker;
 import javax.ws.rs.client.CompletionStageRxInvoker;
 import javax.ws.rs.client.Entity;
@@ -66,11 +70,13 @@ import io.quarkus.deployment.recording.RecorderContext;
 import io.quarkus.deployment.util.JandexUtil;
 import io.quarkus.gizmo.AssignableResultHandle;
 import io.quarkus.gizmo.BytecodeCreator;
+import io.quarkus.gizmo.CatchBlockCreator;
 import io.quarkus.gizmo.ClassCreator;
 import io.quarkus.gizmo.FieldDescriptor;
 import io.quarkus.gizmo.MethodCreator;
 import io.quarkus.gizmo.MethodDescriptor;
 import io.quarkus.gizmo.ResultHandle;
+import io.quarkus.gizmo.TryBlock;
 import io.quarkus.resteasy.reactive.client.deployment.beanparam.BeanParamItem;
 import io.quarkus.resteasy.reactive.client.deployment.beanparam.ClientBeanParamInfo;
 import io.quarkus.resteasy.reactive.client.deployment.beanparam.CookieParamItem;
@@ -428,6 +434,30 @@ public class JaxrsClientProcessor {
 
                 ResultHandle result;
                 String mediaTypeValue = MediaType.APPLICATION_JSON;
+
+                // if a JAXRS method throws an exception, unwrap the ProcessingException and throw the exception instead
+                // Similarly with WebApplicationException
+                TryBlock tryBlock = methodCreator.tryBlock();
+
+                List<Type> exceptionTypes = jandexMethod.exceptions();
+                Set<DotName> exceptions = new HashSet<>();
+                exceptions.add(DotName.createSimple(WebApplicationException.class.getName()));
+                for (Type exceptionType : exceptionTypes) {
+                    exceptions.add(exceptionType.name());
+                }
+
+                CatchBlockCreator catchBlock = tryBlock.addCatch(ProcessingException.class);
+                ResultHandle caughtException = catchBlock.getCaughtException();
+                ResultHandle cause = catchBlock.invokeVirtualMethod(
+                        MethodDescriptor.ofMethod(Throwable.class, "getCause", Throwable.class),
+                        caughtException);
+                for (DotName exception : exceptions) {
+                    catchBlock.ifTrue(catchBlock.instanceOf(cause, exception.toString()))
+                            .trueBranch().throwException(cause);
+                }
+
+                catchBlock.throwException(caughtException);
+
                 if (bodyParameterIdx != null) {
                     String[] consumes = method.getConsumes();
                     if (consumes != null && consumes.length > 0) {
@@ -440,87 +470,86 @@ public class JaxrsClientProcessor {
                         }
                         mediaTypeValue = consumes[0];
                     }
-                    ResultHandle mediaType = methodCreator.invokeStaticMethod(
+                    ResultHandle mediaType = tryBlock.invokeStaticMethod(
                             MethodDescriptor.ofMethod(MediaType.class, "valueOf", MediaType.class, String.class),
-                            methodCreator.load(mediaTypeValue));
+                            tryBlock.load(mediaTypeValue));
 
-                    ResultHandle entity = methodCreator.invokeStaticMethod(
+                    ResultHandle entity = tryBlock.invokeStaticMethod(
                             MethodDescriptor.ofMethod(Entity.class, "entity", Entity.class, Object.class, MediaType.class),
-                            methodCreator.getMethodParam(bodyParameterIdx),
+                            tryBlock.getMethodParam(bodyParameterIdx),
                             mediaType);
 
                     if (completionStage) {
-                        ResultHandle async = methodCreator.invokeInterfaceMethod(
+                        ResultHandle async = tryBlock.invokeInterfaceMethod(
                                 MethodDescriptor.ofMethod(Invocation.Builder.class, "async", AsyncInvoker.class),
                                 builder);
                         // with entity
                         if (genericReturnType != null) {
-                            result = methodCreator.invokeInterfaceMethod(
+                            result = tryBlock.invokeInterfaceMethod(
                                     MethodDescriptor.ofMethod(CompletionStageRxInvoker.class, "method",
                                             CompletionStage.class, String.class,
                                             Entity.class, GenericType.class),
-                                    async, methodCreator.load(method.getHttpMethod()), entity,
+                                    async, tryBlock.load(method.getHttpMethod()), entity,
                                     genericReturnType);
                         } else {
-                            result = methodCreator.invokeInterfaceMethod(
+                            result = tryBlock.invokeInterfaceMethod(
                                     MethodDescriptor.ofMethod(CompletionStageRxInvoker.class, "method", CompletionStage.class,
                                             String.class,
                                             Entity.class, Class.class),
-                                    async, methodCreator.load(method.getHttpMethod()), entity,
-                                    methodCreator.loadClass(simpleReturnType));
+                                    async, tryBlock.load(method.getHttpMethod()), entity,
+                                    tryBlock.loadClass(simpleReturnType));
                         }
                     } else {
                         if (genericReturnType != null) {
-                            // mstodo for async types use .async().get() instead of method()
-                            result = methodCreator.invokeInterfaceMethod(
+                            result = tryBlock.invokeInterfaceMethod(
                                     MethodDescriptor.ofMethod(Invocation.Builder.class, "method", Object.class, String.class,
                                             Entity.class, GenericType.class),
-                                    builder, methodCreator.load(method.getHttpMethod()), entity,
+                                    builder, tryBlock.load(method.getHttpMethod()), entity,
                                     genericReturnType);
                         } else {
-                            result = methodCreator.invokeInterfaceMethod(
+                            result = tryBlock.invokeInterfaceMethod(
                                     MethodDescriptor.ofMethod(Invocation.Builder.class, "method", Object.class, String.class,
                                             Entity.class, Class.class),
-                                    builder, methodCreator.load(method.getHttpMethod()), entity,
-                                    methodCreator.loadClass(simpleReturnType));
+                                    builder, tryBlock.load(method.getHttpMethod()), entity,
+                                    tryBlock.loadClass(simpleReturnType));
                         }
                     }
                 } else {
 
                     if (completionStage) {
-                        ResultHandle async = methodCreator.invokeInterfaceMethod(
+                        ResultHandle async = tryBlock.invokeInterfaceMethod(
                                 MethodDescriptor.ofMethod(Invocation.Builder.class, "async", AsyncInvoker.class),
                                 builder);
                         if (genericReturnType != null) {
-                            result = methodCreator.invokeInterfaceMethod(
+                            result = tryBlock.invokeInterfaceMethod(
                                     MethodDescriptor.ofMethod(CompletionStageRxInvoker.class, "method",
                                             CompletionStage.class, String.class,
                                             GenericType.class),
-                                    async, methodCreator.load(method.getHttpMethod()), genericReturnType);
+                                    async, tryBlock.load(method.getHttpMethod()), genericReturnType);
                         } else {
-                            result = methodCreator.invokeInterfaceMethod(
+                            result = tryBlock.invokeInterfaceMethod(
                                     MethodDescriptor.ofMethod(CompletionStageRxInvoker.class, "method", CompletionStage.class,
                                             String.class,
                                             Class.class),
-                                    async, methodCreator.load(method.getHttpMethod()),
-                                    methodCreator.loadClass(simpleReturnType));
+                                    async, tryBlock.load(method.getHttpMethod()),
+                                    tryBlock.loadClass(simpleReturnType));
                         }
                     } else {
                         if (genericReturnType != null) {
-                            result = methodCreator.invokeInterfaceMethod(
+                            result = tryBlock.invokeInterfaceMethod(
                                     MethodDescriptor.ofMethod(Invocation.Builder.class, "method", Object.class, String.class,
                                             GenericType.class),
-                                    builder, methodCreator.load(method.getHttpMethod()), genericReturnType);
+                                    builder, tryBlock.load(method.getHttpMethod()), genericReturnType);
                         } else {
-                            result = methodCreator.invokeInterfaceMethod(
+                            result = tryBlock.invokeInterfaceMethod(
                                     MethodDescriptor.ofMethod(Invocation.Builder.class, "method", Object.class, String.class,
                                             Class.class),
-                                    builder, methodCreator.load(method.getHttpMethod()),
-                                    methodCreator.loadClass(simpleReturnType));
+                                    builder, tryBlock.load(method.getHttpMethod()),
+                                    tryBlock.loadClass(simpleReturnType));
                         }
                     }
                 }
-                methodCreator.returnValue(result);
+                tryBlock.returnValue(result);
             }
         }
         String creatorName = restClientInterface.getClassName() + "$$QuarkusRestClientInterfaceCreator";
