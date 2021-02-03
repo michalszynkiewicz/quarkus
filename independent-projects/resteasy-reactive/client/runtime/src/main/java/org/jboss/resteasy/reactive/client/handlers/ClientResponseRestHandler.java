@@ -1,9 +1,9 @@
 package org.jboss.resteasy.reactive.client.handlers;
 
+import io.vertx.core.buffer.Buffer;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.List;
-
 import javax.ws.rs.ProcessingException;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.client.ClientResponseFilter;
@@ -11,7 +11,6 @@ import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
-
 import org.jboss.resteasy.reactive.client.api.WebClientApplicationException;
 import org.jboss.resteasy.reactive.client.impl.ClientRequestContextImpl;
 import org.jboss.resteasy.reactive.client.impl.ClientResponseBuilderImpl;
@@ -20,8 +19,6 @@ import org.jboss.resteasy.reactive.client.impl.RestClientRequestContext;
 import org.jboss.resteasy.reactive.client.spi.ClientRestHandler;
 import org.jboss.resteasy.reactive.common.core.Serialisers;
 import org.jboss.resteasy.reactive.common.jaxrs.ResponseImpl;
-
-import io.vertx.core.buffer.Buffer;
 
 public class ClientResponseRestHandler implements ClientRestHandler {
     @Override

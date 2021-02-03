@@ -1,5 +1,6 @@
 package org.jboss.resteasy.reactive.client.impl;
 
+import io.vertx.core.buffer.Buffer;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.security.KeyStore;
@@ -11,17 +12,13 @@ import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.core.Configuration;
-
 import org.jboss.logging.Logger;
 import org.jboss.resteasy.reactive.client.spi.ClientContextResolver;
 import org.jboss.resteasy.reactive.common.jaxrs.ConfigurationImpl;
-
-import io.vertx.core.buffer.Buffer;
 
 public class ClientBuilderImpl extends ClientBuilder {
 
