@@ -2,9 +2,7 @@ package org.jboss.resteasy.reactive.client.impl;
 
 import java.util.Map;
 import java.util.function.Function;
-
 import javax.ws.rs.client.WebTarget;
-
 import org.jboss.resteasy.reactive.client.api.InvalidRestClientDefinitionException;
 
 public class ClientProxies {

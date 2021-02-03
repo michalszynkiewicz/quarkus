@@ -67,6 +67,20 @@ class ReactiveResteasyMpClientProcessor {
         enrichers.produce(new JaxrsClientEnricherBuildItem(new MicroProfileRestClientEnricher()));
     }
 
+    private void searchForJaxRsMethods(List<MethodInfo> listOfKnownMethods, ClassInfo startingInterface, CompositeIndex index) {
+        for (MethodInfo method : startingInterface.methods()) {
+            if (isRestMethod(method)) {
+                listOfKnownMethods.add(method);
+            }
+        }
+        List<DotName> otherImplementedInterfaces = startingInterface.interfaceNames();
+        for (DotName otherInterface : otherImplementedInterfaces) {
+            ClassInfo superInterface = index.getClassByName(otherInterface);
+            if (superInterface != null)
+                searchForJaxRsMethods(listOfKnownMethods, superInterface, index);
+        }
+    }
+
     // mstodo inject rest client class names from
     @BuildStep
     void addRestClientBeans(Capabilities capabilities,
@@ -82,11 +96,8 @@ class ReactiveResteasyMpClientProcessor {
 
                 List<MethodInfo> restMethods = new ArrayList<>();
 
-                for (MethodInfo method : jaxrsInterface.methods()) {
-                    if (isRestMethod(method)) {
-                        restMethods.add(method);
-                    }
-                }
+                // search this class and its super interfaces for jaxrs methods
+                searchForJaxRsMethods(restMethods, jaxrsInterface, index);
                 if (restMethods.isEmpty()) {
                     continue;
                 }

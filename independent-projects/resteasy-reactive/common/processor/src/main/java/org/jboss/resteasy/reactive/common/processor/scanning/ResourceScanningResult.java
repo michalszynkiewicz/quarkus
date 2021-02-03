@@ -3,7 +3,6 @@ package org.jboss.resteasy.reactive.common.processor.scanning;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.MethodInfo;
