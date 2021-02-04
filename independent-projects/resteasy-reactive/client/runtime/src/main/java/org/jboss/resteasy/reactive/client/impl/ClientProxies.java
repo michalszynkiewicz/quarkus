@@ -20,7 +20,7 @@ public class ClientProxies {
         if (function == null) {
             String failure = failures.get(clazz);
             if (failure != null) {
-                throw new InvalidRestClientDefinitionException(failure);
+                throw new InvalidRestClientDefinitionException("Failed to generate client for class " + clazz + failure);
             } else {
                 throw new IllegalArgumentException("Not a REST client interface: " + clazz);
             }
