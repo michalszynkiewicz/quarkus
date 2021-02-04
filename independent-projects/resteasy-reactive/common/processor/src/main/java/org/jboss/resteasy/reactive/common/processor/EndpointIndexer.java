@@ -419,7 +419,6 @@ public abstract class EndpointIndexer<T extends EndpointIndexer<T, PARAM, METHOD
 
                 // mstodo are caches reused between client and server? If yes, we may need more separation here
                 if (type == ParameterType.BEAN) {
-                    // mstodo this may need to work differently for client
                     // transform the bean param
                     formParamRequired |= handleBeanParam(actualEndpointInfo, paramType, methodParameters, i);
                 } else if (type == ParameterType.FORM) {
@@ -502,7 +501,8 @@ public abstract class EndpointIndexer<T extends EndpointIndexer<T, PARAM, METHOD
             boolean encoded, Type paramType, PARAM parameterResult, String name, String defaultValue,
             ParameterType type, String elementType, boolean single, String signature);
 
-    protected String[] applyDefaultProduces(String[] produces, Type nonAsyncReturnType) {
+    // mstodo doesn't it break MP?
+    private String[] applyDefaultProduces(String[] produces, Type nonAsyncReturnType) {
         if (produces != null && produces.length != 0)
             return produces;
         // FIXME: primitives

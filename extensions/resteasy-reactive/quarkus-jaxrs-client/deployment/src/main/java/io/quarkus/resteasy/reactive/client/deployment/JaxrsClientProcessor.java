@@ -3,8 +3,6 @@ package io.quarkus.resteasy.reactive.client.deployment;
 import static io.quarkus.deployment.Feature.RESTEASY_REACTIVE_JAXRS_CLIENT;
 
 import java.io.Closeable;
-import java.io.File;
-import java.io.IOException;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Collection;
@@ -35,6 +33,7 @@ import org.jboss.jandex.IndexView;
 import org.jboss.jandex.MethodInfo;
 import org.jboss.jandex.ParameterizedType;
 import org.jboss.jandex.Type;
+import org.jboss.logging.Logger;
 import org.jboss.resteasy.reactive.client.impl.ClientImpl;
 import org.jboss.resteasy.reactive.client.impl.WebTargetImpl;
 import org.jboss.resteasy.reactive.common.core.GenericTypeMapping;
@@ -95,6 +94,8 @@ import io.quarkus.runtime.RuntimeValue;
 
 public class JaxrsClientProcessor {
 
+    private static final Logger log = Logger.getLogger(JaxrsClientProcessor.class);
+
     // mstodo pull out all dotnames to a separate class
     private static final DotName COMPLETION_STAGE = DotName.createSimple(CompletionStage.class.getName());
 
@@ -105,12 +106,7 @@ public class JaxrsClientProcessor {
             String.class, Object.class);
 
     @BuildStep
-    void addFeature(BuildProducer<FeatureBuildItem> features) { // mstodo polish this!
-        try {
-            File.createTempFile("-1featureregistration", "tmp");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+    void addFeature(BuildProducer<FeatureBuildItem> features) {
         features.produce(new FeatureBuildItem(RESTEASY_REACTIVE_JAXRS_CLIENT));
     }
 
@@ -171,11 +167,17 @@ public class JaxrsClientProcessor {
                     i.getValue());
             if (maybeClientProxy.isOkay()) {
                 RestClientInterface clientProxy = maybeClientProxy.getRestClientInterface();
-                RuntimeValue<Function<WebTarget, ?>> proxyProvider = generateClientInvoker(recorderContext, clientProxy,
-                        enricherBuildItems, generatedClassBuildItemBuildProducer, clazz, index);
-                if (proxyProvider != null) {
-                    clientImplementations.put(clientProxy.getClassName(), proxyProvider);
+                try {
+                    RuntimeValue<Function<WebTarget, ?>> proxyProvider = generateClientInvoker(recorderContext, clientProxy,
+                            enricherBuildItems, generatedClassBuildItemBuildProducer, clazz, index);
+                    if (proxyProvider != null) {
+                        clientImplementations.put(clientProxy.getClassName(), proxyProvider);
+                    }
+                } catch (Exception any) {
+                    log.debugv(any, "Failed to create client proxy for {0} this can usually be safely ignored", clazz.name());
+                    failures.put(clazz.name().toString(), any.getMessage());
                 }
+
             } else {
                 failures.put(clazz.name().toString(), maybeClientProxy.getFailure());
             }
@@ -237,8 +239,8 @@ public class JaxrsClientProcessor {
         for (ResourceMethod i : restClientInterface.getMethods()) {
             if (i.getHttpMethod() == null) {
                 subResource = true;
+                break;
             }
-            break;
         }
         if (subResource) {
             return null;
@@ -283,13 +285,15 @@ public class JaxrsClientProcessor {
             int methodIndex = 0;
             for (ResourceMethod method : restClientInterface.getMethods()) {
                 methodIndex++;
-                String[] javaMethodParameters = Arrays.stream(method.getParameters()).map(s -> s.type)
+                String[] javaMethodParameters = Arrays.stream(method.getParameters())
+                        .map(s -> s.declaredType != null ? s.declaredType : s.type)
                         .toArray(String[]::new);
                 MethodCreator methodCreator = c.getMethodCreator(method.getName(), method.getSimpleReturnType(),
                         javaMethodParameters);
-                MethodInfo jandexMethod = getJavaMethod(interfaceClass, method, javaMethodParameters, index)
+                MethodInfo jandexMethod = getJavaMethod(interfaceClass, method, method.getParameters(), index)
                         .orElseThrow(() -> new RuntimeException(
-                                "Failed to find matching java method for " + method + " on " + interfaceClass));
+                                "Failed to find matching java method for " + method + " on " + interfaceClass
+                                        + ". It may have unresolved parameter types (generics)"));
 
                 AssignableResultHandle target = methodCreator.createVariable(WebTarget.class);
 
@@ -362,10 +366,6 @@ public class JaxrsClientProcessor {
                 }
 
                 for (JaxrsClientEnricherBuildItem enricher : enrichers) {
-                    //MethodCreator methodCreator, ClassInfo interfaceClass, MethodInfo method,
-                    //            AssignableResultHandle methodWebTarget, IndexView index, BuildProducer<GeneratedClassBuildItem> generatedClasses,
-                    //            int methodIndex);
-                    // mstodo get rid of this, this is ugly, not the way it should be:
                     enricher.getEnricher().forMethod(methodCreator, interfaceClass, jandexMethod, target, index,
                             generatedClassBuildItemBuildProducer, methodIndex);
                 }
@@ -433,7 +433,9 @@ public class JaxrsClientProcessor {
                 }
 
                 ResultHandle result;
-                String mediaTypeValue = MediaType.APPLICATION_JSON;
+
+                // mstodo is different required for MP? APPLICATION_JSON;
+                String mediaTypeValue = MediaType.APPLICATION_OCTET_STREAM;
 
                 // if a JAXRS method throws an exception, unwrap the ProcessingException and throw the exception instead
                 // Similarly with WebApplicationException
@@ -565,21 +567,34 @@ public class JaxrsClientProcessor {
     }
 
     private Optional<MethodInfo> getJavaMethod(ClassInfo interfaceClass, ResourceMethod method,
-            String[] parameters, IndexView index) {
+            MethodParameter[] parameters, IndexView index) {
 
-        Optional<MethodInfo> maybeMethod = interfaceClass.methods().stream()
-                .filter(it -> it.name().equals(method.getName()) && Arrays.equals(
-                        it.parameters().stream().map(par -> par.name().toString()).toArray(), parameters))
-                .findAny();
-        if (!maybeMethod.isPresent()) {
-            for (DotName interfaceName : interfaceClass.interfaceNames()) {
-                maybeMethod = getJavaMethod(index.getClassByName(interfaceName), method, parameters, index);
-                if (maybeMethod.isPresent()) {
-                    break;
+        for (MethodInfo methodInfo : interfaceClass.methods()) {
+            if (methodInfo.name().equals(method.getName()) && methodInfo.parameters().size() == parameters.length) {
+                boolean matches = true;
+                for (int i = 0; i < parameters.length; i++) {
+                    MethodParameter actualParam = parameters[i];
+                    Type parameterType = methodInfo.parameters().get(i);
+                    String declaredType = actualParam.declaredType != null ? actualParam.declaredType : actualParam.type;
+                    if (!declaredType.equals(parameterType.name().toString())) {
+                        matches = false;
+                        break;
+                    }
+                }
+                if (matches) {
+                    return Optional.of(methodInfo);
                 }
             }
         }
 
+        Optional<MethodInfo> maybeMethod = Optional.empty();
+        for (DotName interfaceName : interfaceClass.interfaceNames()) {
+            maybeMethod = getJavaMethod(index.getClassByName(interfaceName), method, parameters,
+                    index);
+            if (maybeMethod.isPresent()) {
+                break;
+            }
+        }
         return maybeMethod;
     }
 
