@@ -48,7 +48,8 @@ public class BeanParamParser {
                     if (type.kind() == Type.Kind.CLASS) {
                         List<Item> subBeanParamItems = parse(index.getClassByName(type.asClassType().name()), index);
                         resultList.add(new BeanParamItem(subBeanParamItems,
-                                new FieldExtractor(null, fieldInfo.name(), fieldInfo.declaringClass().name().toString()))); // mstodo generate a class and pass as a parameter or remove parameter
+                                new FieldExtractor(null, fieldInfo.name(), fieldInfo.declaringClass().name().toString())));
+                        // mstodo generate a class and pass as a parameter or remove parameter
                     } else {
                         throw new IllegalArgumentException("BeanParam annotation used on a field that is not an object: "
                                 + beanParamClass.name() + "." + fieldInfo.name());
@@ -114,7 +115,6 @@ public class BeanParamParser {
         }
 
         if (getter == null) {
-            // mstodo maybe warning is enough?
             throw new IllegalArgumentException(
                     "No getter corresponding to " + methodInfo.declaringClass().name() + "#" + methodInfo.name() + " found");
         }

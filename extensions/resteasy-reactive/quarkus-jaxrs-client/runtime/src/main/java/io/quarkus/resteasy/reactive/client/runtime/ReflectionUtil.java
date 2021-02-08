@@ -3,9 +3,11 @@ package io.quarkus.resteasy.reactive.client.runtime;
 import java.lang.reflect.Field;
 
 @SuppressWarnings("unused")
-// mstodo check if used ;)
 public class ReflectionUtil {
-    // mstodo try to get rid of it?
+
+    private ReflectionUtil() {
+    }
+
     public static Object readField(Object object, Class<?> clazz, String fieldName) {
         try {
             Field field = clazz.getDeclaredField(fieldName);

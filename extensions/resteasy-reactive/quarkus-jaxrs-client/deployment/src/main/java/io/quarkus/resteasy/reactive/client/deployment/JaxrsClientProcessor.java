@@ -419,7 +419,6 @@ public class JaxrsClientProcessor {
                                 simpleReturnType = type.toString();
                             }
                         }
-                        /// mstodo is this needed? returnType.asParameterizedType().arguments().iterator().next();
                     } else {
                         ResultHandle currentThread = methodCreator.invokeStaticMethod(MethodDescriptors.THREAD_CURRENT_THREAD);
                         ResultHandle tccl = methodCreator.invokeVirtualMethod(MethodDescriptors.THREAD_GET_TCCL, currentThread);

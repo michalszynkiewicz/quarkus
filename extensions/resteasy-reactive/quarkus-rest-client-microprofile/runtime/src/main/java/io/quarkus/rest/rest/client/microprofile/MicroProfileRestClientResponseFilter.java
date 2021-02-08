@@ -33,7 +33,9 @@ public class MicroProfileRestClientResponseFilter implements ClientResponseFilte
                         ((ClientRequestContextImpl) requestContext).getRestClientRequestContext(),
                         (ClientResponseContextImpl) responseContext);
                 Throwable throwable = exceptionMapper.toThrowable(response);
-                throw new ProcessingException(throwable);
+                if (throwable != null) {
+                    throw new ProcessingException(throwable);
+                }
             }
         }
     }
