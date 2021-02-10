@@ -6,6 +6,7 @@ import static org.jboss.resteasy.reactive.common.processor.scanning.ResteasyReac
 import java.lang.annotation.RetentionPolicy;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +26,7 @@ import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.CompositeIndex;
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.MethodInfo;
+import org.jboss.jandex.Type;
 import org.jboss.logging.Logger;
 
 import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
@@ -81,6 +83,23 @@ class ReactiveResteasyMpClientProcessor {
             ClassInfo superInterface = index.getClassByName(otherInterface);
             if (superInterface != null)
                 searchForJaxRsMethods(listOfKnownMethods, superInterface, index);
+        }
+    }
+
+    @BuildStep
+    void registerHeaderFactoryBeans(CombinedIndexBuildItem index,
+            BuildProducer<AdditionalBeanBuildItem> additionalBeans) {
+        Collection<AnnotationInstance> annotations = index.getIndex().getAnnotations(DotNames.REGISTER_CLIENT_HEADERS);
+
+        for (AnnotationInstance registerClientHeaders : annotations) {
+            AnnotationValue value = registerClientHeaders.value();
+            if (value != null) {
+                Type clientHeaderFactoryType = value.asClass();
+                String factoryTypeName = clientHeaderFactoryType.name().toString();
+                if (!MicroProfileRestClientEnricher.DEFAULT_HEADERS_FACTORY.equals(factoryTypeName)) {
+                    additionalBeans.produce(AdditionalBeanBuildItem.unremovableOf(factoryTypeName));
+                }
+            }
         }
     }
 
