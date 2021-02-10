@@ -174,6 +174,11 @@ public class RestClientBuilderImpl implements RestClientBuilder {
 
     @Override
     public <T> T build(Class<T> aClass) throws IllegalStateException, RestClientDefinitionException {
+        if (url == null) {
+            // mandated by the spec
+            throw new IllegalStateException("No URL specified. Cannot build a rest client without URL");
+        }
+
         RestClientListeners.get().forEach(listener -> listener.onNewClient(aClass, this));
 
         Object defaultMapperDisabled = getConfiguration().getProperty(DEFAULT_MAPPER_DISABLED);

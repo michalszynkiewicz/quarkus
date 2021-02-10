@@ -150,7 +150,6 @@ class MicroProfileRestClientEnricher implements JaxrsClientEnricher {
 
         AnnotationInstance registerClientHeaders = interfaceClass.classAnnotation(REGISTER_CLIENT_HEADERS);
 
-        // mstodo MP Config may have something to do with header factory ;)
         if (registerClientHeaders != null) {
             Type type = registerClientHeaders.valueWithDefault(index).asClass();
             clientHeadersFactory = methodCreator.newInstance(MethodDescriptor.ofConstructor(type.toString()));
@@ -158,14 +157,12 @@ class MicroProfileRestClientEnricher implements JaxrsClientEnricher {
             clientHeadersFactory = methodCreator
                     .newInstance(MethodDescriptor.ofConstructor(DefaultClientHeadersFactoryImpl.class));
         }
-        // mstodo if enabled, register for reflection and grab the method
         ResultHandle interfaceClassHandle = methodCreator.loadClass(interfaceClass.toString());
 
         ResultHandle parameterArray = methodCreator.newArray(Class.class, method.parameters().size());
-        int i = 0; // mstodo replace with fori
-        for (Type parameter : method.parameters()) {
-            String parameterClass = parameter.name().toString();
-            methodCreator.writeArrayValue(parameterArray, i++, methodCreator.loadClass(parameterClass));
+        for (int i = 0; i < method.parameters().size(); i++) {
+            String parameterClass = method.parameters().get(i).name().toString();
+            methodCreator.writeArrayValue(parameterArray, i, methodCreator.loadClass(parameterClass));
         }
 
         ResultHandle javaMethodHandle = methodCreator.invokeVirtualMethod(

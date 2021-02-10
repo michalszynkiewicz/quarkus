@@ -37,7 +37,7 @@ public class MicroProfileRestRequestClientFilter implements ClientRequestFilter 
      */
     public MicroProfileRestRequestClientFilter(@Nullable HeaderFiller headerFiller,
             @NotNull ClientHeadersFactory headersFactory,
-            // mstodo provide method only if some property is set
+            // TODO: to optimize, add an option to disable passing the method?
             @Nullable Method method) {
         this.headerFiller = headerFiller;
         this.headersFactory = headersFactory;

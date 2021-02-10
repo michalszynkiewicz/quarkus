@@ -1,7 +1,9 @@
 package io.quarkus.resteasy.reactive.client.deployment;
 
+import static org.jboss.resteasy.reactive.common.processor.EndpointIndexer.CDI_WRAPPER_SUFFIX;
 import static org.jboss.resteasy.reactive.common.processor.scanning.ResteasyReactiveScanner.BUILTIN_HTTP_ANNOTATIONS_TO_METHOD;
 
+import java.lang.annotation.RetentionPolicy;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -10,6 +12,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.enterprise.context.SessionScoped;
+import javax.enterprise.inject.Typed;
 
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.ConfigProvider;
@@ -48,9 +51,9 @@ class ReactiveResteasyMpClientProcessor {
 
     private static final Logger log = Logger.getLogger(ReactiveResteasyMpClientProcessor.class);
 
-    private static final DotName REST_CLIENT = DotName.createSimple(RestClient.class.getName());
     private static final DotName REGISTER_REST_CLIENT = DotName.createSimple(RegisterRestClient.class.getName());
     private static final DotName SESSION_SCOPED = DotName.createSimple(SessionScoped.class.getName());
+
     private static final String DELEGATE = "delegate";
     private static final String CREATE_DELEGATE = "createDelegate";
 
@@ -81,7 +84,6 @@ class ReactiveResteasyMpClientProcessor {
         }
     }
 
-    // mstodo inject rest client class names from
     @BuildStep
     void addRestClientBeans(Capabilities capabilities,
             CombinedIndexBuildItem combinedIndexBuildItem,
@@ -102,8 +104,9 @@ class ReactiveResteasyMpClientProcessor {
                     continue;
                 }
 
+                String wrapperClassName = jaxrsInterface.name().toString() + CDI_WRAPPER_SUFFIX;
                 try (ClassCreator classCreator = ClassCreator.builder()
-                        .className(jaxrsInterface.name().toString() + "$$CDIWrapper")
+                        .className(wrapperClassName)
                         .classOutput(new GeneratedBeanGizmoAdaptor(generatedBeans))
                         .interfaces(jaxrsInterface.name().toString())
                         .build()) {
@@ -114,13 +117,16 @@ class ReactiveResteasyMpClientProcessor {
                             configPrefix);
                     classCreator.addAnnotation(scope.getDotName().toString());
                     classCreator.addAnnotation(RestClient.class);
+                    org.objectweb.asm.Type asmType = org.objectweb.asm.Type
+                            .getObjectType(jaxrsInterface.name().toString().replace('.', '/'));
+                    classCreator.addAnnotation(Typed.class.getName(), RetentionPolicy.RUNTIME)
+                            .addValue("value", new org.objectweb.asm.Type[] { asmType });
 
                     FieldDescriptor delegateField = FieldDescriptor.of(classCreator.getClassName(), DELEGATE,
                             jaxrsInterface.name().toString());
                     classCreator.getFieldCreator(delegateField).setModifiers(Modifier.FINAL | Modifier.PRIVATE);
 
                     // CONSTRUCTOR:
-                    // mstodo move to @PostConstruct if doesn't work
                     MethodCreator constructor = classCreator
                             .getMethodCreator(MethodDescriptor.ofConstructor(classCreator.getClassName()));
                     constructor.invokeSpecialMethod(MethodDescriptor.ofConstructor(Object.class), constructor.getThis());
@@ -157,12 +163,6 @@ class ReactiveResteasyMpClientProcessor {
                                 }
                             }
                         }
-
-                        method.annotations()
-                                .stream()
-                                .filter(a -> a.target().kind() == AnnotationTarget.Kind.METHOD)
-                                .filter(a -> !BUILTIN_HTTP_ANNOTATIONS_TO_METHOD.containsKey(a.name()))
-                                .forEach(methodCreator::addAnnotation);
 
                         ResultHandle delegate = methodCreator.readInstanceField(delegateField, methodCreator.getThis());
 

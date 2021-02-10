@@ -11,6 +11,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import javax.ws.rs.RuntimeType;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedHashMap;
@@ -20,6 +21,7 @@ import javax.ws.rs.ext.MessageBodyReader;
 import javax.ws.rs.ext.MessageBodyWriter;
 import javax.ws.rs.ext.ReaderInterceptor;
 import javax.ws.rs.ext.WriterInterceptor;
+
 import org.jboss.resteasy.reactive.common.jaxrs.ConfigurationImpl;
 import org.jboss.resteasy.reactive.common.model.ResourceReader;
 import org.jboss.resteasy.reactive.common.model.ResourceWriter;
@@ -54,7 +56,7 @@ public abstract class Serialisers {
         if (configuration != null && !configuration.getResourceReaders().isEmpty()) {
             readers = new QuarkusMultivaluedHashMap<>();
             readers.addAll(configuration.getResourceReaders());
-            readers.addAll(new MultivaluedHashMap<>(this.readers)); // mstodo we can get rid of new hashmap creation
+            readers.addAll(this.readers);
         } else {
             readers = this.readers;
         }
@@ -278,7 +280,7 @@ public abstract class Serialisers {
         if (configuration != null && !configuration.getResourceWriters().isEmpty()) {
             writers = new QuarkusMultivaluedHashMap<>();
             writers.addAll(configuration.getResourceWriters());
-            writers.addAll(new MultivaluedHashMap<>(this.writers));
+            writers.addAll(new MultivaluedHashMap<>((MultivaluedMap<Class<?>, ResourceWriter>) this.writers));
         } else {
             writers = this.writers;
         }
