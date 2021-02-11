@@ -10,7 +10,6 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <!--mstodo: clean up dependencies-->
     <artifactId>quarkus-rest-client-microprofile</artifactId>
     <name>Quarkus - MicroProfile Rest Client - Runtime</name>
     <description>MicroProfile Rest Client</description>

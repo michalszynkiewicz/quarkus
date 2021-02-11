@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import javax.annotation.Priority;
+import javax.enterprise.context.RequestScoped;
 import javax.ws.rs.client.ClientRequestContext;
 import javax.ws.rs.client.ClientRequestFilter;
 import javax.ws.rs.core.MultivaluedHashMap;
@@ -13,10 +14,10 @@ import javax.ws.rs.core.MultivaluedMap;
 import org.eclipse.microprofile.rest.client.ext.ClientHeadersFactory;
 import org.eclipse.microprofile.rest.client.ext.DefaultClientHeadersFactoryImpl;
 
+import io.quarkus.arc.Arc;
 import io.smallrye.common.constraint.NotNull;
 import io.smallrye.common.constraint.Nullable;
 
-// mstodo a test for it that also runs in native
 @Priority(Integer.MIN_VALUE)
 public class MicroProfileRestRequestClientFilter implements ClientRequestFilter {
     private static final MultivaluedMap<String, String> EMPTY_MAP = new MultivaluedHashMap<>();
@@ -59,24 +60,21 @@ public class MicroProfileRestRequestClientFilter implements ClientRequestFilter 
             // add headers to a mutable headers collection
             headerFiller.addHeaders(headers);
         }
-        // mstodo
-        //        @SuppressWarnings("unchecked")
-        //        MultivaluedMap<String, String> containerHeaders = (MultivaluedMap<String, String>) requestContext
-        //                .getProperty(MpClientInvocation.CONTAINER_HEADERS);
-        //        if (containerHeaders == null)
-        //            containerHeaders = EMPTY_MAP;
-        //        // stupid final rules
-        //        MultivaluedMap<String, String> incomingHeaders = containerHeaders;
+
+        MultivaluedMap<String, String> incomingHeaders = MicroProfileRestRequestClientFilter.EMPTY_MAP;
+        if (Arc.container().getActiveContext(RequestScoped.class) != null) {
+            HeaderContainer headerContainer = Arc.container().instance(HeaderContainer.class).get();
+            if (headerContainer != null) {
+                incomingHeaders = headerContainer.getHeaders();
+            }
+        }
 
         if (headersFactory instanceof DefaultClientHeadersFactoryImpl) {
             // When using the default factory, pass the proposed outgoing headers onto the request context.
             // Propagation with the default factory will then overwrite any values if required.
             headers.forEach((key, values) -> requestContext.getHeaders().put(key, castToListOfObjects(values)));
         }
-
-        // mstodo take incoming headers from a server side request filter
-        MultivaluedHashMap<String, String> TODO_PASS_INCOMING_HEADERS = new MultivaluedHashMap<>();
-        headersFactory.update(TODO_PASS_INCOMING_HEADERS, headers)
+        headersFactory.update(incomingHeaders, headers)
                 .forEach((key, values) -> requestContext.getHeaders().put(key, castToListOfObjects(values)));
 
         requestContext.setProperty("org.eclipse.microprofile.rest.client.invokedMethod", method);

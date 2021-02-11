@@ -143,7 +143,8 @@ class MicroProfileRestClientEnricher implements JaxrsClientEnricher {
                 headerFiller = methodCreator.newInstance(MethodDescriptor.ofConstructor(fillerClassName));
             }
         } else {
-            headerFiller = methodCreator.newInstance(MethodDescriptor.ofConstructor(NoOpHeaderFiller.class)); // mstodo make it a singleton
+            headerFiller = methodCreator
+                    .readStaticField(FieldDescriptor.of(NoOpHeaderFiller.class, "INSTANCE", NoOpHeaderFiller.class));
         }
 
         ResultHandle clientHeadersFactory = null;

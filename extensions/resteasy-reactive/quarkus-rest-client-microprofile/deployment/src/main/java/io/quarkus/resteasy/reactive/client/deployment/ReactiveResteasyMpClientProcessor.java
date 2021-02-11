@@ -46,8 +46,11 @@ import io.quarkus.gizmo.FieldDescriptor;
 import io.quarkus.gizmo.MethodCreator;
 import io.quarkus.gizmo.MethodDescriptor;
 import io.quarkus.gizmo.ResultHandle;
+import io.quarkus.rest.rest.client.microprofile.HeaderCapturingServerFilter;
+import io.quarkus.rest.rest.client.microprofile.HeaderContainer;
 import io.quarkus.rest.rest.client.microprofile.RestClientCDIDelegateBuilder;
 import io.quarkus.rest.rest.client.microprofile.recorder.RestClientRecorder;
+import io.quarkus.resteasy.reactive.spi.CustomContainerRequestFilterBuildItem;
 
 class ReactiveResteasyMpClientProcessor {
 
@@ -61,10 +64,17 @@ class ReactiveResteasyMpClientProcessor {
 
     @BuildStep
     @Record(ExecutionTime.STATIC_INIT)
-    void setup(BuildProducer<AdditionalBeanBuildItem> additionalBeans,
+    void setupAdditionalBeans(
+            BuildProducer<AdditionalBeanBuildItem> additionalBeans,
             RestClientRecorder restClientRecorder) {
         restClientRecorder.setRestClientBuilderResolver();
         additionalBeans.produce(new AdditionalBeanBuildItem(RestClient.class));
+        additionalBeans.produce(AdditionalBeanBuildItem.unremovableOf(HeaderContainer.class));
+    }
+
+    @BuildStep
+    void setupRequestCollectingFilter(BuildProducer<CustomContainerRequestFilterBuildItem> filters) {
+        filters.produce(new CustomContainerRequestFilterBuildItem(HeaderCapturingServerFilter.class.getName()));
     }
 
     @BuildStep

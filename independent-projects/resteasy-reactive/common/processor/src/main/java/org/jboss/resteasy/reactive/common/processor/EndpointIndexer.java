@@ -424,7 +424,6 @@ public abstract class EndpointIndexer<T extends EndpointIndexer<T, PARAM, METHOD
                         parameterResult, name, defaultValue, type, elementType, single,
                         AsmUtil.getSignature(paramType, typeArgMapper));
 
-                // mstodo are caches reused between client and server? If yes, we may need more separation here
                 if (type == ParameterType.BEAN) {
                     // transform the bean param
                     formParamRequired |= handleBeanParam(actualEndpointInfo, paramType, methodParameters, i);

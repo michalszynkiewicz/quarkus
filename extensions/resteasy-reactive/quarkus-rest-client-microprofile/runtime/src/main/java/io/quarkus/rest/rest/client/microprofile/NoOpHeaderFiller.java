@@ -6,4 +6,7 @@ public class NoOpHeaderFiller implements HeaderFiller {
     @Override
     public void addHeaders(MultivaluedMap<String, String> headers) {
     }
+
+    @SuppressWarnings("unused")
+    public static NoOpHeaderFiller INSTANCE = new NoOpHeaderFiller();
 }

@@ -97,8 +97,6 @@ public class JaxrsClientProcessor {
 
     private static final Logger log = Logger.getLogger(JaxrsClientProcessor.class);
 
-    // mstodo pull out all dotnames to a separate class
-
     public static final MethodDescriptor STRING_REPLACE_METHOD = MethodDescriptor.ofMethod(String.class, "replace",
             String.class,
             CharSequence.class, CharSequence.class);
@@ -308,7 +306,6 @@ public class JaxrsClientProcessor {
 
                 for (int paramIdx = 0; paramIdx < method.getParameters().length; ++paramIdx) {
                     MethodParameter param = method.getParameters()[paramIdx];
-                    // mstodo we need a wrapper on it so that it can be used together with field, etc?
                     if (param.parameterType == ParameterType.QUERY) {
                         //TODO: converters
                         methodCreator.assign(target, addQueryParam(methodCreator, target, param.name,
@@ -331,7 +328,6 @@ public class JaxrsClientProcessor {
                         enricherMethodCreator.returnValue(invocationBuilderRef);
                         invocationBuilderEnrichers.put(enricherMethod, methodCreator.getMethodParam(paramIdx));
                     } else if (param.parameterType == ParameterType.PATH) {
-                        // mstodo
                         ResultHandle paramPlaceholder = methodCreator.load(String.format("{%s}", param.name));
                         ResultHandle pathParamValue = methodCreator.invokeStaticMethod(STRING_VALUE_OF_METHOD,
                                 methodCreator.getMethodParam(paramIdx));

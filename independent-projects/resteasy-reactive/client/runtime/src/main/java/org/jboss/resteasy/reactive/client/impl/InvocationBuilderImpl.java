@@ -28,6 +28,10 @@ import org.jboss.resteasy.reactive.spi.ThreadSetupAction;
 
 public class InvocationBuilderImpl implements Invocation.Builder {
 
+    public static final String READ_TIMEOUT = "io.quarkus.rest.client.read-timeout";
+
+    private static final long DEFAULT_READ_TIMEOUT = 30_000L;
+
     final URI uri;
     final HttpClient httpClient;
     final WebTargetImpl target;
@@ -37,6 +41,7 @@ public class InvocationBuilderImpl implements Invocation.Builder {
     final ClientRestHandler[] handlerChain;
     final ClientRestHandler[] abortHandlerChain;
     final ThreadSetupAction requestContext;
+    final long readTimeoutMs;
 
     public InvocationBuilderImpl(URI uri, ClientImpl restClient, HttpClient httpClient,
             WebTargetImpl target,
@@ -50,6 +55,12 @@ public class InvocationBuilderImpl implements Invocation.Builder {
         this.handlerChain = handlerChain;
         this.abortHandlerChain = abortHandlerChain;
         this.requestContext = requestContext;
+        Object readTimeoutMs = configuration.getProperty(READ_TIMEOUT);
+        if (readTimeoutMs == null) {
+            this.readTimeoutMs = DEFAULT_READ_TIMEOUT;
+        } else {
+            this.readTimeoutMs = (long) readTimeoutMs;
+        }
     }
 
     @Override
@@ -181,7 +192,7 @@ public class InvocationBuilderImpl implements Invocation.Builder {
 
     private <T> T unwrap(CompletableFuture<T> c) {
         try {
-            return c.get(30, TimeUnit.SECONDS); // mstodo config property to configure it
+            return c.get(readTimeoutMs, TimeUnit.MILLISECONDS);
         } catch (InterruptedException | TimeoutException e) {
             throw new RuntimeException(e);
         } catch (ExecutionException e) {
