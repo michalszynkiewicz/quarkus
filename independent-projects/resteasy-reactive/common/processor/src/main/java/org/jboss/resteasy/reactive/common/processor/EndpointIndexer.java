@@ -507,17 +507,16 @@ public abstract class EndpointIndexer<T extends EndpointIndexer<T, PARAM, METHOD
             boolean encoded, Type paramType, PARAM parameterResult, String name, String defaultValue,
             ParameterType type, String elementType, boolean single, String signature);
 
-    // mstodo doesn't it break MP?
     private String[] applyDefaultProduces(String[] produces, Type nonAsyncReturnType) {
         if (produces != null && produces.length != 0)
             return produces;
-        // FIXME: primitives
-        if (STRING.equals(nonAsyncReturnType.name()))
-            return config.isSingleDefaultProduces() ? PRODUCES_PLAIN_TEXT : PRODUCES_PLAIN_TEXT_NEGOTIATED;
         return applyAdditionalDefaults(nonAsyncReturnType);
     }
 
     protected String[] applyAdditionalDefaults(Type nonAsyncReturnType) {
+        // FIXME: primitives
+        if (STRING.equals(nonAsyncReturnType.name()))
+            return config.isSingleDefaultProduces() ? PRODUCES_PLAIN_TEXT : PRODUCES_PLAIN_TEXT_NEGOTIATED;
         return EMPTY_STRING_ARRAY;
     }
 

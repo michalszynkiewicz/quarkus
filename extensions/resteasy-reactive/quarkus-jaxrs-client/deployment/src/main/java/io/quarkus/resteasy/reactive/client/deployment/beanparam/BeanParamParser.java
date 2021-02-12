@@ -28,7 +28,6 @@ public class BeanParamParser {
                 AnnotationTarget target = annotation.target();
                 if (target.kind() == AnnotationTarget.Kind.FIELD) {
                     FieldInfo fieldInfo = target.asField();
-                    // mstodo converters!!!
                     resultList.add(new QueryParamItem(annotation.value().asString(),
                             new FieldExtractor(null, fieldInfo.name(), fieldInfo.declaringClass().name().toString())));
                 } else if (target.kind() == AnnotationTarget.Kind.METHOD) {
@@ -42,14 +41,13 @@ public class BeanParamParser {
         if (beanParams != null) {
             for (AnnotationInstance annotation : beanParams) {
                 AnnotationTarget target = annotation.target();
-                if (target.kind() == AnnotationTarget.Kind.FIELD) { // mstodo get rid of reflection!
+                if (target.kind() == AnnotationTarget.Kind.FIELD) {
                     FieldInfo fieldInfo = target.asField();
                     Type type = fieldInfo.type();
                     if (type.kind() == Type.Kind.CLASS) {
                         List<Item> subBeanParamItems = parse(index.getClassByName(type.asClassType().name()), index);
                         resultList.add(new BeanParamItem(subBeanParamItems,
                                 new FieldExtractor(null, fieldInfo.name(), fieldInfo.declaringClass().name().toString())));
-                        // mstodo generate a class and pass as a parameter or remove parameter
                     } else {
                         throw new IllegalArgumentException("BeanParam annotation used on a field that is not an object: "
                                 + beanParamClass.name() + "." + fieldInfo.name());
@@ -71,7 +69,6 @@ public class BeanParamParser {
                 AnnotationTarget target = annotation.target();
                 if (target.kind() == AnnotationTarget.Kind.FIELD) {
                     FieldInfo fieldInfo = target.asField();
-                    // mstodo converters!!!
                     resultList.add(new CookieParamItem(annotation.value().asString(),
                             new FieldExtractor(null, fieldInfo.name(), fieldInfo.declaringClass().name().toString())));
                 } else if (target.kind() == AnnotationTarget.Kind.METHOD) {
@@ -88,7 +85,6 @@ public class BeanParamParser {
                 AnnotationTarget target = queryParamAnnotation.target();
                 if (target.kind() == AnnotationTarget.Kind.FIELD) {
                     FieldInfo fieldInfo = target.asField();
-                    // mstodo converters!!!
                     resultList.add(new HeaderParamItem(queryParamAnnotation.value().asString(),
                             new FieldExtractor(null, fieldInfo.name(), fieldInfo.declaringClass().name().toString())));
                 } else if (target.kind() == AnnotationTarget.Kind.METHOD) {

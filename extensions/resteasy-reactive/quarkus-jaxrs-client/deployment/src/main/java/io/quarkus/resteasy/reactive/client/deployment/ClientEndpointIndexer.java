@@ -42,11 +42,13 @@ import io.quarkus.resteasy.reactive.client.deployment.beanparam.Item;
 public class ClientEndpointIndexer
         extends EndpointIndexer<ClientEndpointIndexer, ClientEndpointIndexer.ClientIndexedParam, ResourceMethod> {
 
-    private static final String[] PRODUCES_JSON_NEGOTATIED = new String[] { APPLICATION_JSON, MediaType.WILDCARD };
-    private static final String[] PRODUCES_JSON = new String[] { APPLICATION_JSON };
+    private final String[] defaultProduces;
+    private final String[] defaultProducesNegotiated;
 
-    ClientEndpointIndexer(Builder builder) {
+    ClientEndpointIndexer(Builder builder, String defaultProduces) {
         super(builder);
+        this.defaultProduces = new String[] { defaultProduces };
+        this.defaultProducesNegotiated = new String[] { defaultProduces, MediaType.WILDCARD };
     }
 
     public MaybeRestClientInterface createClientProxy(ClassInfo classInfo,
@@ -108,6 +110,15 @@ public class ClientEndpointIndexer
                 defaultValue, parameterResult.isObtainedAsCollection(), encoded);
     }
 
+    @Override
+    protected String[] applyAdditionalDefaults(Type nonAsyncReturnType) {
+        if (config.isSingleDefaultProduces()) {
+            return defaultProduces;
+        } else {
+            return defaultProducesNegotiated;
+        }
+    }
+
     protected void addWriterForType(AdditionalWriters additionalWriters, Type paramType) {
         addReaderWriterForType(additionalWriters, paramType);
     }
@@ -141,9 +152,16 @@ public class ClientEndpointIndexer
     }
 
     public static final class Builder extends EndpointIndexer.Builder<ClientEndpointIndexer, Builder, ResourceMethod> {
+        private String defaultProduces = MediaType.TEXT_PLAIN;
+
+        public Builder setDefaultProduces(String defaultProduces) {
+            this.defaultProduces = defaultProduces;
+            return this;
+        }
+
         @Override
         public ClientEndpointIndexer build() {
-            return new ClientEndpointIndexer(this);
+            return new ClientEndpointIndexer(this, defaultProduces);
         }
     }
 }

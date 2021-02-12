@@ -80,12 +80,10 @@ public class ClientImpl implements Client {
 
     public ClientImpl(ConfigurationImpl configuration, ClientContext clientContext,
             HostnameVerifier hostnameVerifier,
-            String keystorePassword,
-            Buffer keystore,
-            Buffer trustStore,
+            Buffer keystore, String keystorePassword, Buffer trustStore, String trustStorePassword,
             SSLContext sslContext) {
-        // mstodo: ssl context
-        // mstodo: hostnameVerifier
+        // TODO: ssl context
+        // TODO: hostnameVerifier
         this.configuration = configuration != null ? configuration : new ConfigurationImpl(RuntimeType.CLIENT);
         this.clientContext = clientContext;
         this.hostnameVerifier = hostnameVerifier;
@@ -104,19 +102,19 @@ public class ClientImpl implements Client {
             closeVertx = true;
         }
         HttpClientOptions options = new HttpClientOptions();
-        // mstodo
 
         if (keystore != null || trustStore != null) {
             options = options.setSsl(true);
             if (keystore != null) {
                 JksOptions jks = new JksOptions();
-                jks.setPassword(keystorePassword);
                 jks.setValue(keystore);
+                jks.setPassword(keystorePassword);
                 options = options.setKeyStoreOptions(jks);
             }
             if (trustStore != null) {
                 JksOptions jks = new JksOptions();
                 jks.setValue(trustStore);
+                jks.setPassword(trustStorePassword);
                 options.setTrustStoreOptions(jks);
             }
         }
