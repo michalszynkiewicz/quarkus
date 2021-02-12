@@ -1,7 +1,7 @@
 package org.jboss.resteasy.reactive.client.impl;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static javax.ws.rs.core.HttpHeaders.CONTENT_TYPE;
 
 import java.io.OutputStream;
 import java.lang.annotation.Annotation;
@@ -27,6 +27,7 @@ import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.Configuration;
 import javax.ws.rs.core.Cookie;
 import javax.ws.rs.core.GenericEntity;
+import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
@@ -100,9 +101,13 @@ public class ClientRequestContextImpl implements ClientRequestContext {
 
     @Override
     public MultivaluedMap<String, String> getStringHeaders() {
-        // FIXME: this should be mutable, but it's a copy ATM
-        // mstodo: this!!!
-        return restClientRequestContext.requestHeaders.asMap();
+        CaseInsensitiveMap<String> map = new CaseInsensitiveMap<String>();
+        for (Map.Entry<String, List<Object>> entry : headersMap.entrySet()) {
+            for (Object obj : entry.getValue()) {
+                map.add(entry.getKey(), HeaderUtil.headerToString(obj));
+            }
+        }
+        return map;
     }
 
     @Override
@@ -239,8 +244,9 @@ public class ClientRequestContextImpl implements ClientRequestContext {
         return restClientRequestContext.getAbortedWith();
     }
 
-    // mstodo: this seems not the right approach
     private class ClientRequestHeadersMap implements MultivaluedMap<String, Object> {
+
+        public static final String CONTENT_TYPE = "Content-Type";
 
         @Override
         public void putSingle(String key, Object value) {
@@ -274,14 +280,57 @@ public class ClientRequestContextImpl implements ClientRequestContext {
 
         @Override
         public boolean equalsIgnoreValueOrder(MultivaluedMap<String, Object> otherMap) {
-            // mstodo check the content type too!
-            return restClientRequestContext.requestHeaders.getHeaders().equalsIgnoreValueOrder(otherMap);
+            if (this == otherMap) {
+                return true;
+            }
+            CaseInsensitiveMap<Object> headers = restClientRequestContext.requestHeaders.getHeaders();
+
+            boolean contentTypeMatched = false;
+            int checkedKeyCount = 0;
+            for (Entry<String, List<Object>> otherEntry : otherMap.entrySet()) {
+                checkedKeyCount++;
+                if (otherEntry.getKey().equalsIgnoreCase(CONTENT_TYPE)) {
+                    contentTypeMatched = true;
+                    List<Object> contentTypes = headers.get(CONTENT_TYPE);
+
+                    if (contentTypes == null) {
+                        String mediaType = mediaType();
+                        if (mediaType != null) {
+                            contentTypes = singletonList(mediaType);
+                        } else {
+                            contentTypes = emptyList();
+                        }
+                    }
+                    for (Object value : otherEntry.getValue()) {
+                        if (!contentTypes.contains(value)) {
+                            return false;
+                        }
+                    }
+                } else {
+                    List<Object> otherValues = otherEntry.getValue();
+                    List<Object> values = headers.get(otherEntry.getKey());
+                    if (otherValues.size() != values.size()) {
+                        return false;
+                    }
+                    for (Object value : otherValues) {
+                        if (!values.contains(value)) {
+                            return false;
+                        }
+                    }
+                }
+            }
+
+            if (!contentTypeMatched && (headers.containsKey(CONTENT_TYPE) || mediaType() != null)) {
+                return false;
+            }
+
+            return checkedKeyCount == headers.keySet().size();
         }
 
         @Override
         public int size() {
-            // mstodo add content type if it's not in headers
-            return restClientRequestContext.requestHeaders.getHeaders().size();
+            CaseInsensitiveMap<Object> headers = restClientRequestContext.requestHeaders.getHeaders();
+            return headers.containsKey(CONTENT_TYPE) ? headers.size() : headers.size() + 1;
         }
 
         @Override
@@ -305,8 +354,9 @@ public class ClientRequestContextImpl implements ClientRequestContext {
         @Override
         public List<Object> get(Object key) {
             List<Object> result = restClientRequestContext.requestHeaders.getHeaders().get(key);
-            if (result == null && isContentType(key)) {
-                result = new ArrayList<>(singletonList(mediaType()));
+            String mediaType = mediaType();
+            if (result == null && isContentType(key) && mediaType != null) {
+                result = new ArrayList<>(singletonList(mediaType));
             }
             return result;
         }
@@ -334,12 +384,12 @@ public class ClientRequestContextImpl implements ClientRequestContext {
         @Override
         public Set<String> keySet() {
             Set<String> keys = restClientRequestContext.requestHeaders.getHeaders().keySet();
-            if (keys.contains(CONTENT_TYPE) || mediaType() == null) {
+            if (keys.contains(HttpHeaders.CONTENT_TYPE) || mediaType() == null) {
                 return keys;
             } else {
                 Set<String> keysWithContentType = new TreeSet<>();
                 // TODO this is a copy of the set, it should be a set "connected" to the underlying map
-                keysWithContentType.add(CONTENT_TYPE);
+                keysWithContentType.add(HttpHeaders.CONTENT_TYPE);
                 keysWithContentType.addAll(keys);
                 return keysWithContentType;
             }
@@ -349,7 +399,7 @@ public class ClientRequestContextImpl implements ClientRequestContext {
         public Collection<List<Object>> values() {
             CaseInsensitiveMap<Object> headers = restClientRequestContext.requestHeaders.getHeaders();
             Collection<List<Object>> values = headers.values();
-            if (headers.containsKey(CONTENT_TYPE) || mediaType() == null) {
+            if (headers.containsKey(HttpHeaders.CONTENT_TYPE) || mediaType() == null) {
                 return values;
             } else {
                 ArrayList<List<Object>> result = new ArrayList<>(values);
@@ -362,7 +412,7 @@ public class ClientRequestContextImpl implements ClientRequestContext {
         public Set<Entry<String, List<Object>>> entrySet() {
             CaseInsensitiveMap<Object> headers = restClientRequestContext.requestHeaders.getHeaders();
             Set<Entry<String, List<Object>>> entries = headers.entrySet();
-            if (headers.containsKey(CONTENT_TYPE) || mediaType() == null) {
+            if (headers.containsKey(HttpHeaders.CONTENT_TYPE) || mediaType() == null) {
                 return entries;
             } else {
                 return new AbstractSet<Entry<String, List<Object>>>() {
@@ -382,7 +432,7 @@ public class ClientRequestContextImpl implements ClientRequestContext {
                                     return iterator.next();
                                 } else if (!contentTypeReturned.get()) {
                                     contentTypeReturned.set(true);
-                                    return new AbstractMap.SimpleEntry<>(CONTENT_TYPE, singletonList(mediaType()));
+                                    return new AbstractMap.SimpleEntry<>(HttpHeaders.CONTENT_TYPE, singletonList(mediaType()));
                                 } else {
                                     throw new NoSuchElementException();
                                 }
@@ -399,7 +449,7 @@ public class ClientRequestContextImpl implements ClientRequestContext {
         }
 
         private boolean isContentType(Object key) {
-            return key instanceof String && ((String) key).equalsIgnoreCase(CONTENT_TYPE);
+            return key instanceof String && ((String) key).equalsIgnoreCase(HttpHeaders.CONTENT_TYPE);
         }
 
         private String mediaType() {

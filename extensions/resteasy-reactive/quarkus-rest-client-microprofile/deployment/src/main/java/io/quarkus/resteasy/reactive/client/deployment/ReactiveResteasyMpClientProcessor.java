@@ -14,6 +14,7 @@ import java.util.Set;
 
 import javax.enterprise.context.SessionScoped;
 import javax.enterprise.inject.Typed;
+import javax.ws.rs.core.MediaType;
 
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.ConfigProvider;
@@ -61,6 +62,13 @@ class ReactiveResteasyMpClientProcessor {
 
     private static final String DELEGATE = "delegate";
     private static final String CREATE_DELEGATE = "createDelegate";
+
+    @BuildStep
+    void setUpDefaultMediaType(BuildProducer<RestClientDefaultConsumesBuildItem> consumes,
+            BuildProducer<RestClientDefaultProducesBuildItem> produces) {
+        consumes.produce(new RestClientDefaultConsumesBuildItem(MediaType.APPLICATION_JSON, 10));
+        produces.produce(new RestClientDefaultProducesBuildItem(MediaType.APPLICATION_JSON, 10));
+    }
 
     @BuildStep
     @Record(ExecutionTime.STATIC_INIT)

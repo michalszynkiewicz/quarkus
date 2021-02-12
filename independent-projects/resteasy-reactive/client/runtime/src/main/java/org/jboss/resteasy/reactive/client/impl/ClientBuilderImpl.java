@@ -8,7 +8,6 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -25,9 +24,8 @@ public class ClientBuilderImpl extends ClientBuilder {
     private static final Logger log = Logger.getLogger(ClientBuilderImpl.class);
 
     private static final ClientContextResolver CLIENT_CONTEXT_RESOLVER = ClientContextResolver.getInstance();
-    private static final char[] storePassword = randomAlphanumeric(10);
+    private static final char[] EMPTY_CHAR_ARARAY = new char[0];
 
-    private ClientProxies clientProxies;
     private ConfigurationImpl configuration;
     private HostnameVerifier hostnameVerifier;
     private KeyStore keyStore;
@@ -43,10 +41,8 @@ public class ClientBuilderImpl extends ClientBuilder {
 
     @Override
     public ClientBuilder sslContext(SSLContext sslContext) {
-        this.sslContext = sslContext;
-        this.keyStore = null;
-        this.trustStore = null;
-        return this;
+        // TODO
+        throw new RuntimeException("Specifying SSLContext is not supported at the moment");
     }
 
     @Override
@@ -93,26 +89,24 @@ public class ClientBuilderImpl extends ClientBuilder {
     @Override
     public ClientImpl build() {
 
-        Buffer keyStore = asBuffer(this.keyStore);
-        Buffer trustStore = asBuffer(this.trustStore);
-
-        // mstodo ssl context!!!
+        Buffer keyStore = asBuffer(this.keyStore, keystorePassword);
+        Buffer trustStore = asBuffer(this.trustStore, EMPTY_CHAR_ARARAY);
 
         return new ClientImpl(configuration,
                 CLIENT_CONTEXT_RESOLVER.resolve(Thread.currentThread().getContextClassLoader()),
                 hostnameVerifier,
-                keystorePassword == null ? null : new String(keystorePassword),
-                keyStore,
+                keyStore, keystorePassword == null ? null : new String(keystorePassword),
                 trustStore,
+                "",
                 sslContext);
 
     }
 
-    private Buffer asBuffer(KeyStore keyStore) {
+    private Buffer asBuffer(KeyStore keyStore, char[] password) {
         if (keyStore != null) {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             try {
-                keyStore.store(out, storePassword);
+                keyStore.store(out, password);
                 return Buffer.buffer(out.toByteArray());
             } catch (KeyStoreException | IOException | NoSuchAlgorithmException | CertificateException e) {
                 log.error("Failed to translate keystore to vert.x keystore", e);
@@ -178,24 +172,5 @@ public class ClientBuilderImpl extends ClientBuilder {
     public ClientBuilderImpl register(Object component, Map<Class<?>, Integer> contracts) {
         configuration.register(component, contracts);
         return this;
-    }
-
-    // mstodo test
-    private static char[] randomAlphanumeric(int length) {
-        Random random = new Random();
-        char[] password = new char[length];
-
-        for (int i = 0; i < length; i++) {
-            int randomNumber = random.nextInt(60);
-
-            if (randomNumber < 10) {
-                password[i] = (char) (randomNumber + '0');
-            } else if (randomNumber < (10 + 25)) {
-                password[i] = (char) (randomNumber - 10 + 'a');
-            } else {
-                password[i] = (char) (randomNumber - 10 - 25 + 'A');
-            }
-        }
-        return password;
     }
 }

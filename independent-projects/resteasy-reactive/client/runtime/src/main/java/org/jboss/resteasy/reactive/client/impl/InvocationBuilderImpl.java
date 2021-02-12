@@ -202,7 +202,7 @@ public class InvocationBuilderImpl implements Invocation.Builder {
             if (e.getCause() instanceof WebApplicationException) {
                 throw (WebApplicationException) e.getCause();
             }
-            throw new RuntimeException(e.getCause().getMessage(), e.getCause());
+            throw new ProcessingException(e.getCause().getMessage(), e.getCause());
         }
     }
 

@@ -10,12 +10,18 @@ import org.jboss.shrinkwrap.api.spec.WebArchive;
 public class RestClientProcessor implements ApplicationArchiveProcessor {
     @Override
     public void process(Archive<?> applicationArchive, TestClass testClass) {
-        // TODO SSL properties may be needed when SSL tests are fixed
-        String appProperties = "";
+        // Only apply the processor to SSL tests
+        if (testClass.getName().contains("SslHostnameVerifierTest") ||
+                testClass.getName().contains("SslMutualTest") ||
+                testClass.getName().contains("SslTrustStoreTest") ||
+                testClass.getName().contains("SslContextTest")) {
 
-        if (applicationArchive instanceof WebArchive) {
+            if (!(applicationArchive instanceof WebArchive)) {
+                return;
+            }
+
             WebArchive war = applicationArchive.as(WebArchive.class);
-            war.addAsResource(new StringAsset(appProperties), "application.properties");
+            war.addAsResource(new StringAsset("quarkus.ssl.native=true"), "application.properties");
         }
 
         // Make sure the test class and all of its superclasses are added to the test deployment

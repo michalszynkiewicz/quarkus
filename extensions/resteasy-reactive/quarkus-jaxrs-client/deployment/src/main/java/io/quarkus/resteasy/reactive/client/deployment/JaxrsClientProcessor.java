@@ -9,6 +9,7 @@ import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -122,7 +123,11 @@ public class JaxrsClientProcessor {
             ResteasyReactiveConfig config,
             RecorderContext recorderContext,
             BuildProducer<GeneratedClassBuildItem> generatedClassBuildItemBuildProducer,
-            BuildProducer<BytecodeTransformerBuildItem> bytecodeTransformerBuildItemBuildProducer) {
+            BuildProducer<BytecodeTransformerBuildItem> bytecodeTransformerBuildItemBuildProducer,
+            List<RestClientDefaultProducesBuildItem> defaultConsumes,
+            List<RestClientDefaultConsumesBuildItem> defaultProduces) {
+        String defaultConsumesType = defaultMediaType(defaultConsumes, MediaType.APPLICATION_OCTET_STREAM);
+        String defaultProducesType = defaultMediaType(defaultProduces, MediaType.TEXT_PLAIN);
 
         Serialisers serialisers = recorder.createSerializers();
 
@@ -153,7 +158,9 @@ public class JaxrsClientProcessor {
                 .setFactoryCreator(new QuarkusFactoryCreator(recorder, beanContainerBuildItem.getValue()))
                 .setAdditionalWriters(additionalWriters)
                 .setDefaultBlocking(applicationResultBuildItem.getResult().isBlocking())
-                .setHasRuntimeConverters(false).build();
+                .setHasRuntimeConverters(false)
+                .setDefaultProduces(defaultProducesType)
+                .build();
 
         Map<String, RuntimeValue<Function<WebTarget, ?>>> clientImplementations = new HashMap<>();
         Map<String, String> failures = new HashMap<>();
@@ -167,7 +174,7 @@ public class JaxrsClientProcessor {
                 RestClientInterface clientProxy = maybeClientProxy.getRestClientInterface();
                 try {
                     RuntimeValue<Function<WebTarget, ?>> proxyProvider = generateClientInvoker(recorderContext, clientProxy,
-                            enricherBuildItems, generatedClassBuildItemBuildProducer, clazz, index);
+                            enricherBuildItems, generatedClassBuildItemBuildProducer, clazz, index, defaultConsumesType);
                     if (proxyProvider != null) {
                         clientImplementations.put(clientProxy.getClassName(), proxyProvider);
                     }
@@ -207,6 +214,14 @@ public class JaxrsClientProcessor {
 
     }
 
+    private String defaultMediaType(List<? extends MediaTypeWithPriority> defaultMediaTypes, String defaultMediaType) {
+        if (defaultMediaTypes == null || defaultMediaTypes.isEmpty()) {
+            return defaultMediaType;
+        }
+        defaultMediaTypes.sort(Comparator.comparingInt(MediaTypeWithPriority::getPriority));
+        return defaultMediaTypes.get(0).getMediaType();
+    }
+
     @BuildStep
     @Record(ExecutionTime.STATIC_INIT)
     public void registerInvocationCallbacks(CombinedIndexBuildItem index, ResteasyReactiveClientRecorder recorder) {
@@ -231,7 +246,7 @@ public class JaxrsClientProcessor {
     private RuntimeValue<Function<WebTarget, ?>> generateClientInvoker(RecorderContext recorderContext,
             RestClientInterface restClientInterface, List<JaxrsClientEnricherBuildItem> enrichers,
             BuildProducer<GeneratedClassBuildItem> generatedClassBuildItemBuildProducer, ClassInfo interfaceClass,
-            IndexView index) {
+            IndexView index, String defaultMediaType) {
         boolean subResource = false;
         //if the interface contains sub resource locator methods we ignore it
         for (ResourceMethod i : restClientInterface.getMethods()) {
@@ -243,8 +258,8 @@ public class JaxrsClientProcessor {
         if (subResource) {
             return null;
         }
-        // mstodo: ATM this may create a web target on each call of a method (each request)
-        // mstodo: optimize it
+        // TODO: ATM this may create a web target on each call of a method (each request)
+        // TODO: optimize it
         String name = restClientInterface.getClassName() + "$$QuarkusRestClientInterface";
         MethodDescriptor ctorDesc = MethodDescriptor.ofConstructor(name, WebTarget.class.getName());
         try (ClassCreator c = new ClassCreator(new GeneratedClassGizmoAdaptor(generatedClassBuildItemBuildProducer, true),
@@ -367,7 +382,7 @@ public class JaxrsClientProcessor {
                 }
 
                 ResultHandle builder;
-                if (method.getProduces() == null || method.getProduces().length == 0) { // mstodo this should never happen!
+                if (method.getProduces() == null || method.getProduces().length == 0) { // this should never happen!
                     builder = methodCreator.invokeInterfaceMethod(
                             MethodDescriptor.ofMethod(WebTarget.class, "request", Invocation.Builder.class), target);
                 } else {
@@ -429,8 +444,7 @@ public class JaxrsClientProcessor {
 
                 ResultHandle result;
 
-                // mstodo is different required for MP? APPLICATION_JSON;
-                String mediaTypeValue = MediaType.APPLICATION_OCTET_STREAM;
+                String mediaTypeValue = defaultMediaType;
 
                 // if a JAXRS method throws an exception, unwrap the ProcessingException and throw the exception instead
                 // Similarly with WebApplicationException
@@ -629,7 +643,7 @@ public class JaxrsClientProcessor {
                             headerParam.extract(invoEnricher, invoEnricher.getMethodParam(1)));
                     break;
                 default:
-                    throw new IllegalStateException("Unimplemented"); // mstodo form params, etc
+                    throw new IllegalStateException("Unimplemented"); // TODO form params, etc
             }
         }
     }
