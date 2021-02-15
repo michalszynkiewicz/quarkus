@@ -6,6 +6,7 @@ import static org.jboss.resteasy.reactive.common.processor.scanning.ResteasyReac
 import java.lang.annotation.RetentionPolicy;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +26,7 @@ import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.CompositeIndex;
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.MethodInfo;
+import org.jboss.jandex.Type;
 import org.jboss.logging.Logger;
 
 import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
@@ -44,8 +46,11 @@ import io.quarkus.gizmo.FieldDescriptor;
 import io.quarkus.gizmo.MethodCreator;
 import io.quarkus.gizmo.MethodDescriptor;
 import io.quarkus.gizmo.ResultHandle;
+import io.quarkus.rest.rest.client.microprofile.HeaderCapturingServerFilter;
+import io.quarkus.rest.rest.client.microprofile.HeaderContainer;
 import io.quarkus.rest.rest.client.microprofile.RestClientCDIDelegateBuilder;
 import io.quarkus.rest.rest.client.microprofile.recorder.RestClientRecorder;
+import io.quarkus.resteasy.reactive.spi.CustomContainerRequestFilterBuildItem;
 
 class ReactiveResteasyMpClientProcessor {
 
@@ -59,10 +64,17 @@ class ReactiveResteasyMpClientProcessor {
 
     @BuildStep
     @Record(ExecutionTime.STATIC_INIT)
-    void setup(BuildProducer<AdditionalBeanBuildItem> additionalBeans,
+    void setupAdditionalBeans(
+            BuildProducer<AdditionalBeanBuildItem> additionalBeans,
             RestClientRecorder restClientRecorder) {
         restClientRecorder.setRestClientBuilderResolver();
         additionalBeans.produce(new AdditionalBeanBuildItem(RestClient.class));
+        additionalBeans.produce(AdditionalBeanBuildItem.unremovableOf(HeaderContainer.class));
+    }
+
+    @BuildStep
+    void setupRequestCollectingFilter(BuildProducer<CustomContainerRequestFilterBuildItem> filters) {
+        filters.produce(new CustomContainerRequestFilterBuildItem(HeaderCapturingServerFilter.class.getName()));
     }
 
     @BuildStep
@@ -81,6 +93,23 @@ class ReactiveResteasyMpClientProcessor {
             ClassInfo superInterface = index.getClassByName(otherInterface);
             if (superInterface != null)
                 searchForJaxRsMethods(listOfKnownMethods, superInterface, index);
+        }
+    }
+
+    @BuildStep
+    void registerHeaderFactoryBeans(CombinedIndexBuildItem index,
+            BuildProducer<AdditionalBeanBuildItem> additionalBeans) {
+        Collection<AnnotationInstance> annotations = index.getIndex().getAnnotations(DotNames.REGISTER_CLIENT_HEADERS);
+
+        for (AnnotationInstance registerClientHeaders : annotations) {
+            AnnotationValue value = registerClientHeaders.value();
+            if (value != null) {
+                Type clientHeaderFactoryType = value.asClass();
+                String factoryTypeName = clientHeaderFactoryType.name().toString();
+                if (!MicroProfileRestClientEnricher.DEFAULT_HEADERS_FACTORY.equals(factoryTypeName)) {
+                    additionalBeans.produce(AdditionalBeanBuildItem.unremovableOf(factoryTypeName));
+                }
+            }
         }
     }
 

@@ -1,6 +1,8 @@
 package io.quarkus.resteasy.reactive.client.deployment;
 
 import static io.quarkus.deployment.Feature.RESTEASY_REACTIVE_JAXRS_CLIENT;
+import static org.jboss.resteasy.reactive.common.processor.ResteasyReactiveDotNames.COMPLETION_STAGE;
+import static org.jboss.resteasy.reactive.common.processor.ResteasyReactiveDotNames.WEB_APPLICATION_EXCEPTION;
 
 import java.io.Closeable;
 import java.lang.reflect.Modifier;
@@ -18,7 +20,6 @@ import java.util.function.Function;
 
 import javax.ws.rs.ProcessingException;
 import javax.ws.rs.RuntimeType;
-import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.client.AsyncInvoker;
 import javax.ws.rs.client.CompletionStageRxInvoker;
 import javax.ws.rs.client.Entity;
@@ -95,9 +96,6 @@ import io.quarkus.runtime.RuntimeValue;
 public class JaxrsClientProcessor {
 
     private static final Logger log = Logger.getLogger(JaxrsClientProcessor.class);
-
-    // mstodo pull out all dotnames to a separate class
-    private static final DotName COMPLETION_STAGE = DotName.createSimple(CompletionStage.class.getName());
 
     public static final MethodDescriptor STRING_REPLACE_METHOD = MethodDescriptor.ofMethod(String.class, "replace",
             String.class,
@@ -308,7 +306,6 @@ public class JaxrsClientProcessor {
 
                 for (int paramIdx = 0; paramIdx < method.getParameters().length; ++paramIdx) {
                     MethodParameter param = method.getParameters()[paramIdx];
-                    // mstodo we need a wrapper on it so that it can be used together with field, etc?
                     if (param.parameterType == ParameterType.QUERY) {
                         //TODO: converters
                         methodCreator.assign(target, addQueryParam(methodCreator, target, param.name,
@@ -331,7 +328,6 @@ public class JaxrsClientProcessor {
                         enricherMethodCreator.returnValue(invocationBuilderRef);
                         invocationBuilderEnrichers.put(enricherMethod, methodCreator.getMethodParam(paramIdx));
                     } else if (param.parameterType == ParameterType.PATH) {
-                        // mstodo
                         ResultHandle paramPlaceholder = methodCreator.load(String.format("{%s}", param.name));
                         ResultHandle pathParamValue = methodCreator.invokeStaticMethod(STRING_VALUE_OF_METHOD,
                                 methodCreator.getMethodParam(paramIdx));
@@ -442,7 +438,7 @@ public class JaxrsClientProcessor {
 
                 List<Type> exceptionTypes = jandexMethod.exceptions();
                 Set<DotName> exceptions = new HashSet<>();
-                exceptions.add(DotName.createSimple(WebApplicationException.class.getName()));
+                exceptions.add(WEB_APPLICATION_EXCEPTION);
                 for (Type exceptionType : exceptionTypes) {
                     exceptions.add(exceptionType.name());
                 }

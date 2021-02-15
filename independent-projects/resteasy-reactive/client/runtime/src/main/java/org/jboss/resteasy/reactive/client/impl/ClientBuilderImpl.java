@@ -29,11 +29,11 @@ public class ClientBuilderImpl extends ClientBuilder {
 
     private ClientProxies clientProxies;
     private ConfigurationImpl configuration;
-    private SSLContext sslContext;
-    private KeyStore trustStore;
+    private HostnameVerifier hostnameVerifier;
     private KeyStore keyStore;
     private char[] keystorePassword;
-    private HostnameVerifier hostnameVerifier;
+    private SSLContext sslContext;
+    private KeyStore trustStore;
 
     @Override
     public ClientBuilder withConfig(Configuration config) {
@@ -86,7 +86,7 @@ public class ClientBuilderImpl extends ClientBuilder {
 
     @Override
     public ClientBuilder readTimeout(long timeout, TimeUnit unit) {
-        // TODO
+        configuration.property(InvocationBuilderImpl.READ_TIMEOUT, unit.toMillis(timeout));
         return this;
     }
 

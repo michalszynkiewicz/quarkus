@@ -1,8 +1,14 @@
 package io.quarkus.resteasy.reactive.client.deployment;
 
 import static io.quarkus.arc.processor.DotNames.STRING;
+import static io.quarkus.resteasy.reactive.client.deployment.DotNames.CLIENT_HEADER_PARAM;
+import static io.quarkus.resteasy.reactive.client.deployment.DotNames.CLIENT_HEADER_PARAMS;
+import static io.quarkus.resteasy.reactive.client.deployment.DotNames.REGISTER_CLIENT_HEADERS;
+import static io.quarkus.resteasy.reactive.client.deployment.DotNames.REGISTER_PROVIDER;
+import static io.quarkus.resteasy.reactive.client.deployment.DotNames.REGISTER_PROVIDERS;
 import static org.objectweb.asm.Opcodes.ACC_STATIC;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -17,11 +23,6 @@ import javax.ws.rs.core.Configurable;
 import javax.ws.rs.core.MultivaluedMap;
 
 import org.eclipse.microprofile.rest.client.RestClientDefinitionException;
-import org.eclipse.microprofile.rest.client.annotation.ClientHeaderParam;
-import org.eclipse.microprofile.rest.client.annotation.ClientHeaderParams;
-import org.eclipse.microprofile.rest.client.annotation.RegisterClientHeaders;
-import org.eclipse.microprofile.rest.client.annotation.RegisterProvider;
-import org.eclipse.microprofile.rest.client.annotation.RegisterProviders;
 import org.eclipse.microprofile.rest.client.ext.ClientHeadersFactory;
 import org.eclipse.microprofile.rest.client.ext.DefaultClientHeadersFactoryImpl;
 import org.jboss.jandex.AnnotationInstance;
@@ -33,6 +34,9 @@ import org.jboss.jandex.MethodInfo;
 import org.jboss.jandex.Type;
 import org.jboss.logging.Logger;
 
+import io.quarkus.arc.Arc;
+import io.quarkus.arc.ArcContainer;
+import io.quarkus.arc.InstanceHandle;
 import io.quarkus.deployment.GeneratedClassGizmoAdaptor;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.builditem.GeneratedClassBuildItem;
@@ -55,19 +59,15 @@ import io.quarkus.runtime.util.HashUtil;
 class MicroProfileRestClientEnricher implements JaxrsClientEnricher {
     private static final Logger log = Logger.getLogger(MicroProfileRestClientEnricher.class);
 
-    private static final DotName REGISTER_PROVIDER = DotName.createSimple(RegisterProvider.class.getName());
-    private static final DotName REGISTER_PROVIDERS = DotName.createSimple(RegisterProviders.class.getName());
-    private static final DotName CLIENT_HEADER_PARAM = DotName.createSimple(ClientHeaderParam.class.getName());
-    private static final DotName CLIENT_HEADER_PARAMS = DotName.createSimple(ClientHeaderParams.class.getName());
-    private static final AnnotationInstance[] EMPTY_ANNOTATION_INSTANCES = new AnnotationInstance[0];
+    public static final String DEFAULT_HEADERS_FACTORY = DefaultClientHeadersFactoryImpl.class.getName();
 
+    private static final AnnotationInstance[] EMPTY_ANNOTATION_INSTANCES = new AnnotationInstance[0];
     private static final MethodDescriptor LIST_ADD_METHOD = MethodDescriptor.ofMethod(List.class, "add", boolean.class,
             Object.class);
     private static final MethodDescriptor MAP_PUT_METHOD = MethodDescriptor.ofMethod(Map.class, "put", Object.class,
             Object.class, Object.class);
     private static final MethodDescriptor MAP_CONTAINS_KEY_METHOD = MethodDescriptor.ofMethod(Map.class, "containsKey",
             boolean.class, Object.class);
-    private static final DotName REGISTER_CLIENT_HEADERS = DotName.createSimple(RegisterClientHeaders.class.getName());
 
     private final Map<ClassInfo, String> interfaceMocks = new HashMap<>();
 
@@ -143,19 +143,37 @@ class MicroProfileRestClientEnricher implements JaxrsClientEnricher {
                 headerFiller = methodCreator.newInstance(MethodDescriptor.ofConstructor(fillerClassName));
             }
         } else {
-            headerFiller = methodCreator.newInstance(MethodDescriptor.ofConstructor(NoOpHeaderFiller.class)); // mstodo make it a singleton
+            headerFiller = methodCreator
+                    .readStaticField(FieldDescriptor.of(NoOpHeaderFiller.class, "INSTANCE", NoOpHeaderFiller.class));
         }
 
-        ResultHandle clientHeadersFactory;
+        ResultHandle clientHeadersFactory = null;
 
         AnnotationInstance registerClientHeaders = interfaceClass.classAnnotation(REGISTER_CLIENT_HEADERS);
 
+        boolean useDefaultHeaders = true;
         if (registerClientHeaders != null) {
-            Type type = registerClientHeaders.valueWithDefault(index).asClass();
-            clientHeadersFactory = methodCreator.newInstance(MethodDescriptor.ofConstructor(type.toString()));
-        } else {
+            String headersFactoryClass = registerClientHeaders.valueWithDefault(index)
+                    .asClass().name().toString();
+
+            if (!headersFactoryClass.equals(DEFAULT_HEADERS_FACTORY)) {
+                // Arc.container().instance(...).get():
+                ResultHandle containerHandle = methodCreator
+                        .invokeStaticMethod(MethodDescriptor.ofMethod(Arc.class, "container", ArcContainer.class));
+                ResultHandle instanceHandle = methodCreator.invokeInterfaceMethod(
+                        MethodDescriptor.ofMethod(ArcContainer.class, "instance", InstanceHandle.class, Class.class,
+                                Annotation[].class),
+                        containerHandle, methodCreator.loadClass(headersFactoryClass),
+                        methodCreator.newArray(Annotation.class, 0));
+                clientHeadersFactory = methodCreator
+                        .invokeInterfaceMethod(MethodDescriptor.ofMethod(InstanceHandle.class, "get", Object.class),
+                                instanceHandle);
+                useDefaultHeaders = false;
+            }
+        }
+        if (useDefaultHeaders) {
             clientHeadersFactory = methodCreator
-                    .newInstance(MethodDescriptor.ofConstructor(DefaultClientHeadersFactoryImpl.class));
+                    .newInstance(MethodDescriptor.ofConstructor(DEFAULT_HEADERS_FACTORY));
         }
         ResultHandle interfaceClassHandle = methodCreator.loadClass(interfaceClass.toString());
 

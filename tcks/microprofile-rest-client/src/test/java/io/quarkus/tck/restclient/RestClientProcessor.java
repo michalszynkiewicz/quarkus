@@ -10,20 +10,8 @@ import org.jboss.shrinkwrap.api.spec.WebArchive;
 public class RestClientProcessor implements ApplicationArchiveProcessor {
     @Override
     public void process(Archive<?> applicationArchive, TestClass testClass) {
-        // mstodo check if needed
+        // TODO SSL properties may be needed when SSL tests are fixed
         String appProperties = "";
-        //                ""quarkus.index-dependency.tck.group-id=org.eclipse.microprofile.rest.client\n" +
-        //                "quarkus.index-dependency.tck.artifact-id=microprofile-rest-client-tck\n";
-        /*
-         * // Only apply the processor to SSL tests
-         * if (testClass.getName().contains("SslHostnameVerifierTest") ||
-         * testClass.getName().contains("SslMutualTest") ||
-         * testClass.getName().contains("SslTrustStoreTest") ||
-         * testClass.getName().contains("SslContextTest")) {
-         * 
-         * appProperties += "quarkus.ssl.native=true\n";
-         * }
-         */
 
         if (applicationArchive instanceof WebArchive) {
             WebArchive war = applicationArchive.as(WebArchive.class);
