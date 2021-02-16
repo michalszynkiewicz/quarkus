@@ -10,8 +10,8 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>quarkus-tck-microprofile-rest-client</artifactId>
-    <name>Quarkus - TCK - MicroProfile REST Client</name>
+    <artifactId>quarkus-tck-microprofile-rest-client-reactive</artifactId>
+    <name>Quarkus - TCK - MicroProfile REST Client - RestEasy Reactive</name>
 
     <build>
         <plugins>
@@ -42,9 +42,21 @@
                         <!-- ConversationScope not supported in Quarkus -->
                         <exclude>org.eclipse.microprofile.rest.client.tck.cditests.HasConversationScopeTest</exclude>
 
+                        <!-- we have a newer version of the test in the code -->
+                        <!-- remove our test and remove this once https://github.com/eclipse/microprofile-rest-client/pull/300 gets -->
+                        <!-- into a release -->
+                        <exclude>org.eclipse.microprofile.rest.client.tck.cditests.CDIInterceptorTest</exclude>
+
                         <!-- We have our own version of these tests which set up a config environment -->
                         <exclude>org.eclipse.microprofile.rest.client.tck.InvokeWithJsonBProviderTest</exclude>
                         <exclude>org.eclipse.microprofile.rest.client.tck.InvokeWithJsonPProviderTest</exclude>
+                        <exclude>org.eclipse.microprofile.rest.client.tck.InvalidInterfaceTest</exclude>
+
+                        <!-- currently not supported or unapplicable for non-blocking implementation: -->
+                        <exclude>org.eclipse.microprofile.rest.client.tck.ssl.SslContextTest</exclude>
+                        <exclude>org.eclipse.microprofile.rest.client.tck.ssl.SslHostnameVerifierTest</exclude>
+                        <exclude>org.eclipse.microprofile.rest.client.tck.asynctests.AsyncMethodTest</exclude>
+                        <exclude>org.eclipse.microprofile.rest.client.tck.SubResourceTest</exclude>
 
                         <!-- The connection timeout is too small -->
                         <exclude>org/eclipse/microprofile/rest/client/tck/timeout/*.java</exclude>
@@ -68,6 +80,19 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.jboss.jandex</groupId>
+                <artifactId>jandex-maven-plugin</artifactId>
+                <version>1.0.8</version>
+                <executions>
+                    <execution>
+                        <id>make-index</id>
+                        <goals>
+                            <goal>jandex</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
     <dependencies>
@@ -77,27 +102,11 @@
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-rest-client</artifactId>
+            <artifactId>quarkus-rest-client-microprofile-deployment</artifactId>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-jsonp</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.jboss.resteasy</groupId>
-            <artifactId>resteasy-json-p-provider</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-jsonb</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.jboss.resteasy</groupId>
-            <artifactId>resteasy-json-binding-provider</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-undertow</artifactId>
+            <artifactId>quarkus-resteasy-reactive-jsonb-deployment</artifactId>
         </dependency>
         <dependency>
             <groupId>org.eclipse.microprofile.rest.client</groupId>
@@ -124,65 +133,15 @@
                     <groupId>com.google.code.findbugs</groupId>
                     <artifactId>jsr305</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <dependency>
             <groupId>jakarta.servlet</groupId>
             <artifactId>jakarta.servlet-api</artifactId>
-        </dependency>
-
-        <!-- Minimal test dependencies to *-deployment artifacts for consistent build order -->
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-jsonb-deployment</artifactId>
-            <version>${project.version}</version>
-            <type>pom</type>
-            <scope>test</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>*</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-jsonp-deployment</artifactId>
-            <version>${project.version}</version>
-            <type>pom</type>
-            <scope>test</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>*</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-rest-client-deployment</artifactId>
-            <version>${project.version}</version>
-            <type>pom</type>
-            <scope>test</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>*</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-undertow-deployment</artifactId>
-            <version>${project.version}</version>
-            <type>pom</type>
-            <scope>test</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>*</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
     </dependencies>
 </project>
