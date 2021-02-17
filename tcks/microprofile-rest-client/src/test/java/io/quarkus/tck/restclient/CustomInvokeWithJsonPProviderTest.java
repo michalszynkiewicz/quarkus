@@ -2,12 +2,10 @@ package io.quarkus.tck.restclient;
 
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.spi.ConfigProviderResolver;
-import org.eclipse.microprofile.rest.client.spi.RestClientBuilderResolver;
 import org.eclipse.microprofile.rest.client.tck.InvokeWithJsonPProviderTest;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 
-import io.quarkus.rest.rest.client.microprofile.BuilderResolver;
 import io.quarkus.runtime.configuration.ConfigUtils;
 import io.quarkus.runtime.configuration.QuarkusConfigFactory;
 import io.smallrye.config.SmallRyeConfig;
@@ -28,13 +26,7 @@ public class CustomInvokeWithJsonPProviderTest extends InvokeWithJsonPProviderTe
             }
         } catch (IllegalStateException ignored) {
         }
-        RestClientBuilderResolver.setInstance(new BuilderResolver());
-        try {
-            super.setupClient();
-        } catch (IllegalArgumentException ignored) {
-            // this method is run twice, once before Quarkus stuff is initialized.
-            // The first execution will throw an exception
-        }
+        super.setupClient();
     }
 
     @AfterTest

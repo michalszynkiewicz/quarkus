@@ -1,5 +1,7 @@
 package org.jboss.resteasy.reactive.client.impl;
 
+import static org.jboss.resteasy.reactive.client.api.QuarkusRestClientProperties.CONNECT_TIMEOUT;
+
 import io.netty.channel.EventLoopGroup;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Context;
@@ -67,6 +69,8 @@ import org.jboss.resteasy.reactive.common.jaxrs.ConfigurationImpl;
 
 public class ClientImpl implements Client {
 
+    private static final int DEFAULT_CONNECT_TIMEOUT = 15000;
+
     final ClientContext clientContext;
     final boolean closeVertx;
     final HttpClient httpClient;
@@ -117,6 +121,12 @@ public class ClientImpl implements Client {
                 jks.setPassword(trustStorePassword);
                 options.setTrustStoreOptions(jks);
             }
+        }
+        Object connectTimeoutMs = configuration == null ? null : configuration.getProperty(CONNECT_TIMEOUT);
+        if (connectTimeoutMs == null) {
+            options.setConnectTimeout(DEFAULT_CONNECT_TIMEOUT);
+        } else {
+            options.setConnectTimeout((int) connectTimeoutMs);
         }
         this.httpClient = this.vertx.createHttpClient(options);
         abortHandlerChain = new ClientRestHandler[] { new ClientErrorHandler() };
@@ -277,7 +287,7 @@ public class ClientImpl implements Client {
         private final Supplier<Vertx> supplier;
         private volatile Vertx supplied = null;
 
-        public LazyVertx(Supplier<Vertx> supplier) {
+        LazyVertx(Supplier<Vertx> supplier) {
             this.supplier = supplier;
         }
 
@@ -584,7 +594,7 @@ public class ClientImpl implements Client {
             private final Supplier<HttpClient> supplier;
             private volatile HttpClient supplied = null;
 
-            public LazyHttpClient(Supplier<HttpClient> supplier) {
+            LazyHttpClient(Supplier<HttpClient> supplier) {
                 this.supplier = supplier;
             }
 

@@ -1,5 +1,7 @@
 package org.jboss.resteasy.reactive.client.impl;
 
+import static org.jboss.resteasy.reactive.client.api.QuarkusRestClientProperties.READ_TIMEOUT;
+
 import io.vertx.core.http.HttpClient;
 import java.net.URI;
 import java.util.HashMap;
@@ -27,8 +29,6 @@ import org.jboss.resteasy.reactive.common.jaxrs.ConfigurationImpl;
 import org.jboss.resteasy.reactive.spi.ThreadSetupAction;
 
 public class InvocationBuilderImpl implements Invocation.Builder {
-
-    public static final String READ_TIMEOUT = "io.quarkus.rest.client.read-timeout";
 
     private static final long DEFAULT_READ_TIMEOUT = 30_000L;
 
@@ -194,7 +194,7 @@ public class InvocationBuilderImpl implements Invocation.Builder {
         try {
             return c.get(readTimeoutMs, TimeUnit.MILLISECONDS);
         } catch (InterruptedException | TimeoutException e) {
-            throw new RuntimeException(e);
+            throw new ProcessingException(e);
         } catch (ExecutionException e) {
             if (e.getCause() instanceof ProcessingException) {
                 throw (ProcessingException) e.getCause();

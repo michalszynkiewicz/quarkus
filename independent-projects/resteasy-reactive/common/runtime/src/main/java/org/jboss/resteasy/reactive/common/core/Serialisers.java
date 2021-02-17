@@ -13,7 +13,6 @@ import java.util.Map;
 import java.util.Set;
 import javax.ws.rs.RuntimeType;
 import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.ext.MessageBodyReader;
@@ -278,7 +277,9 @@ public abstract class Serialisers {
         if (configuration != null && !configuration.getResourceWriters().isEmpty()) {
             writers = new QuarkusMultivaluedHashMap<>();
             writers.addAll(configuration.getResourceWriters());
-            writers.addAll(new MultivaluedHashMap<>((MultivaluedMap<Class<?>, ResourceWriter>) this.writers));
+            for (Map.Entry<Class<?>, List<ResourceWriter>> writersEntry : this.writers.entrySet()) {
+                writers.addAll(writersEntry.getKey(), writersEntry.getValue());
+            }
         } else {
             writers = this.writers;
         }

@@ -1,5 +1,8 @@
 package org.jboss.resteasy.reactive.client.impl;
 
+import static org.jboss.resteasy.reactive.client.api.QuarkusRestClientProperties.CONNECT_TIMEOUT;
+import static org.jboss.resteasy.reactive.client.api.QuarkusRestClientProperties.READ_TIMEOUT;
+
 import io.vertx.core.buffer.Buffer;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -76,13 +79,13 @@ public class ClientBuilderImpl extends ClientBuilder {
 
     @Override
     public ClientBuilder connectTimeout(long timeout, TimeUnit unit) {
-        // TODO
+        configuration.property(CONNECT_TIMEOUT, (int) unit.toMillis(timeout));
         return this;
     }
 
     @Override
     public ClientBuilder readTimeout(long timeout, TimeUnit unit) {
-        configuration.property(InvocationBuilderImpl.READ_TIMEOUT, unit.toMillis(timeout));
+        configuration.property(READ_TIMEOUT, unit.toMillis(timeout));
         return this;
     }
 
