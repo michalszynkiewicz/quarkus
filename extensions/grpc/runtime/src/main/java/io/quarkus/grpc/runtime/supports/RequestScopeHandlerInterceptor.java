@@ -9,6 +9,7 @@ import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
 import io.grpc.Status;
 import io.quarkus.arc.Arc;
+import io.quarkus.arc.InjectableContext;
 import io.quarkus.arc.ManagedContext;
 import io.vertx.core.Context;
 import io.vertx.core.Handler;
@@ -31,9 +32,13 @@ public class RequestScopeHandlerInterceptor implements ServerInterceptor {
         // This interceptor is called first, so, we should be on the event loop.
         Context capturedVertxContext = Vertx.currentContext();
         if (capturedVertxContext != null) {
+            InjectableContext.ContextState state;
             boolean activateAndDeactivateContext = !reqContext.isActive();
             if (activateAndDeactivateContext) {
                 reqContext.activate();
+                state = reqContext.getState();
+            } else {
+                state = null;
             }
             return next.startCall(new ForwardingServerCall.SimpleForwardingServerCall<ReqT, RespT>(call) {
                 @Override
@@ -43,7 +48,7 @@ public class RequestScopeHandlerInterceptor implements ServerInterceptor {
                         capturedVertxContext.runOnContext(new Handler<Void>() {
                             @Override
                             public void handle(Void ignored) {
-                                reqContext.deactivate();
+                                reqContext.destroy(state);
                             }
                         });
                     }
