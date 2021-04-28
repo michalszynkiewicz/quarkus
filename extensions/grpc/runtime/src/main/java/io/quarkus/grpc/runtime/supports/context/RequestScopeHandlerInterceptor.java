@@ -1,4 +1,4 @@
-package io.quarkus.grpc.runtime.supports;
+package io.quarkus.grpc.runtime.supports.context;
 
 import org.jboss.logmanager.Logger;
 
@@ -36,6 +36,8 @@ public class RequestScopeHandlerInterceptor implements ServerInterceptor {
             boolean activateAndDeactivateContext = !reqContext.isActive();
             if (activateAndDeactivateContext) {
                 reqContext.activate();
+                GrpcRequestContextMarkerBean marker = Arc.container().instance(GrpcRequestContextMarkerBean.class).get();
+                marker.setCreatedWithGrpc(true);
                 state = reqContext.getState();
             } else {
                 state = null;

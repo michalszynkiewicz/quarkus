@@ -6,17 +6,23 @@ import static java.util.Arrays.asList;
 import java.lang.reflect.Modifier;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.ConfigProvider;
+import org.jboss.jandex.AnnotationTarget;
 import org.jboss.jandex.ClassInfo;
+import org.jboss.jandex.DotName;
 import org.jboss.jandex.MethodInfo;
 import org.jboss.logging.Logger;
 
 import io.grpc.internal.ServerImpl;
 import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
+import io.quarkus.arc.deployment.AnnotationsTransformerBuildItem;
+import io.quarkus.arc.processor.AnnotationsTransformer;
 import io.quarkus.arc.processor.DotNames;
 import io.quarkus.deployment.IsDevelopment;
 import io.quarkus.deployment.IsNormal;
@@ -39,6 +45,8 @@ import io.quarkus.grpc.runtime.config.GrpcConfiguration;
 import io.quarkus.grpc.runtime.config.GrpcServerBuildTimeConfig;
 import io.quarkus.grpc.runtime.health.GrpcHealthEndpoint;
 import io.quarkus.grpc.runtime.health.GrpcHealthStorage;
+import io.quarkus.grpc.runtime.supports.context.CleanUpRequestContext;
+import io.quarkus.grpc.runtime.supports.context.RequestContextCleanupInterceptor;
 import io.quarkus.kubernetes.spi.KubernetesPortBuildItem;
 import io.quarkus.netty.deployment.MinNettyAllocatorMaxOrderBuildItem;
 import io.quarkus.smallrye.health.deployment.spi.HealthBuildItem;
@@ -61,9 +69,13 @@ public class GrpcServerProcessor {
 
     @BuildStep
     void discoverBindableServices(BuildProducer<BindableServiceBuildItem> bindables,
-            CombinedIndexBuildItem combinedIndexBuildItem) {
+            CombinedIndexBuildItem combinedIndexBuildItem,
+            BuildProducer<AnnotationsTransformerBuildItem> annotationTransformers) {
         Collection<ClassInfo> bindableServices = combinedIndexBuildItem.getIndex()
                 .getAllKnownImplementors(GrpcDotNames.BINDABLE_SERVICE);
+
+        final Set<DotName> grpcServiceNames = new HashSet<>();
+
         for (ClassInfo service : bindableServices) {
             if (!Modifier.isAbstract(service.flags()) && service.classAnnotation(DotNames.SINGLETON) != null) {
                 BindableServiceBuildItem item = new BindableServiceBuildItem(service.name());
@@ -72,9 +84,25 @@ public class GrpcServerProcessor {
                         item.registerBlockingMethod(method.name());
                     }
                 }
+                grpcServiceNames.add(service.name());
                 bindables.produce(item);
             }
         }
+
+        annotationTransformers.produce(new AnnotationsTransformerBuildItem(new AnnotationsTransformer() {
+            @Override
+            public boolean appliesTo(AnnotationTarget.Kind kind) {
+                return kind == AnnotationTarget.Kind.CLASS;
+            }
+
+            @Override
+            public void transform(TransformationContext transformationContext) {
+                AnnotationTarget target = transformationContext.getTarget();
+                if (grpcServiceNames.contains(target.asClass().name())) {
+                    transformationContext.transform().add(CleanUpRequestContext.class).done();
+                }
+            }
+        }));
     }
 
     @BuildStep(onlyIf = IsNormal.class)
@@ -85,6 +113,14 @@ public class GrpcServerProcessor {
             return new KubernetesPortBuildItem(port, GRPC_SERVER);
         }
         return null;
+    }
+
+    @BuildStep
+    void registerAdditionalBeans(BuildProducer<AdditionalBeanBuildItem> beans) {
+        beans.produce(new AdditionalBeanBuildItem(RequestContextCleanupInterceptor.class));
+        beans.produce(new AdditionalBeanBuildItem(CleanUpRequestContext.class));
+        beans.produce(
+                AdditionalBeanBuildItem.unremovableOf("io.quarkus.grpc.runtime.supports.context.GrpcRequestContextMarkerBean"));
     }
 
     @BuildStep
