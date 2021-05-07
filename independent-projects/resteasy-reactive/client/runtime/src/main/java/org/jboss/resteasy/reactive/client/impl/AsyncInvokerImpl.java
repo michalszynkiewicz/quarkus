@@ -1,9 +1,9 @@
 package org.jboss.resteasy.reactive.client.impl;
 
+import io.smallrye.loadbalancer.LoadBalancer;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClient;
 import java.lang.reflect.Type;
-import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -16,6 +16,7 @@ import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.InvocationCallback;
 import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.UriBuilder;
 import org.jboss.resteasy.reactive.common.jaxrs.ConfigurationImpl;
 import org.jboss.resteasy.reactive.common.util.types.Types;
 import org.jboss.resteasy.reactive.spi.ThreadSetupAction;
@@ -25,26 +26,28 @@ public class AsyncInvokerImpl implements AsyncInvoker, CompletionStageRxInvoker 
     public static final Buffer EMPTY_BUFFER = Buffer.buffer(new byte[0]);
 
     final HttpClient httpClient;
-    final URI uri;
+    final UriBuilder uriBuilder;
     final RequestSpec requestSpec;
     final ConfigurationImpl configuration;
     final Map<String, Object> properties;
     final ClientImpl restClient;
     final HandlerChain handlerChain;
     final ThreadSetupAction requestContext;
+    final LoadBalancer loadBalancer;
 
-    public AsyncInvokerImpl(ClientImpl restClient, HttpClient httpClient, URI uri, RequestSpec requestSpec,
+    public AsyncInvokerImpl(ClientImpl restClient, HttpClient httpClient, UriBuilder uriBuilder, RequestSpec requestSpec,
             ConfigurationImpl configuration,
             Map<String, Object> properties, HandlerChain handlerChain,
-            ThreadSetupAction requestContext) {
+            ThreadSetupAction requestContext, LoadBalancer loadBalancer) {
         this.restClient = restClient;
         this.httpClient = httpClient;
-        this.uri = uri;
+        this.uriBuilder = uriBuilder;
         this.requestSpec = new RequestSpec(requestSpec);
         this.configuration = configuration;
         this.properties = new HashMap<>(properties);
         this.handlerChain = handlerChain;
         this.requestContext = requestContext;
+        this.loadBalancer = loadBalancer;
     }
 
     public Map<String, Object> getProperties() {
@@ -254,9 +257,9 @@ public class AsyncInvokerImpl implements AsyncInvoker, CompletionStageRxInvoker 
     RestClientRequestContext performRequestInternal(String httpMethodName, Entity<?> entity, GenericType<?> responseType,
             boolean registerBodyHandler) {
         RestClientRequestContext restClientRequestContext = new RestClientRequestContext(restClient, httpClient, httpMethodName,
-                uri, requestSpec.configuration, requestSpec.headers,
+                uriBuilder, requestSpec.configuration, requestSpec.headers,
                 entity, responseType, registerBodyHandler, properties, handlerChain.createHandlerChain(configuration),
-                handlerChain.createAbortHandlerChain(configuration), requestContext);
+                handlerChain.createAbortHandlerChain(configuration), requestContext, loadBalancer);
         restClientRequestContext.run();
         return restClientRequestContext;
     }

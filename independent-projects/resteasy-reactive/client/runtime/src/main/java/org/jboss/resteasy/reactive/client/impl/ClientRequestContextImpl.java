@@ -76,7 +76,7 @@ public class ClientRequestContextImpl implements ResteasyReactiveClientRequestCo
 
     @Override
     public URI getUri() {
-        return restClientRequestContext.uri;
+        return restClientRequestContext.getUri();
     }
 
     @Override

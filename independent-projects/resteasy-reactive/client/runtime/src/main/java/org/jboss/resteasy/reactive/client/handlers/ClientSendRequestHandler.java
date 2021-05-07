@@ -114,6 +114,7 @@ public class ClientSendRequestHandler implements ClientRestHandler {
         });
     }
 
+    // mstodo load balance rhere?
     public Future<HttpClientRequest> createRequest(RestClientRequestContext state) {
         HttpClient httpClient = state.getHttpClient();
         URI uri = state.getUri();

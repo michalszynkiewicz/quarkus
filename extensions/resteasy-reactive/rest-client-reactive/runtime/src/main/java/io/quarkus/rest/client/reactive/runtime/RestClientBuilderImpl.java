@@ -1,6 +1,7 @@
 package io.quarkus.rest.client.reactive.runtime;
 
 import java.lang.reflect.InvocationTargetException;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.security.KeyStore;
@@ -17,7 +18,6 @@ import javax.ws.rs.RuntimeType;
 import javax.ws.rs.core.Configuration;
 
 import org.eclipse.microprofile.config.ConfigProvider;
-import org.eclipse.microprofile.rest.client.RestClientBuilder;
 import org.eclipse.microprofile.rest.client.RestClientDefinitionException;
 import org.eclipse.microprofile.rest.client.ext.QueryParamStyle;
 import org.eclipse.microprofile.rest.client.ext.ResponseExceptionMapper;
@@ -30,11 +30,13 @@ import org.jboss.resteasy.reactive.common.jaxrs.MultiQueryParamMode;
 
 import io.quarkus.arc.Arc;
 import io.quarkus.arc.InstanceHandle;
+import io.quarkus.rest.client.reactive.QuarkusRestClientBuilder;
+import io.smallrye.loadbalancer.LoadBalancer;
 
 /**
  * Builder implementation for MicroProfile Rest Client
  */
-public class RestClientBuilderImpl implements RestClientBuilder {
+public class RestClientBuilderImpl implements QuarkusRestClientBuilder {
 
     private static final String DEFAULT_MAPPER_DISABLED = "microprofile.rest.client.disable.default.mapper";
     private static final String TLS_TRUST_ALL = "quarkus.tls.trust-all";
@@ -46,57 +48,64 @@ public class RestClientBuilderImpl implements RestClientBuilder {
     private URL url;
     private boolean followRedirects;
     private QueryParamStyle queryParamStyle;
+    private LoadBalancer loadBalancer;
 
     @Override
-    public RestClientBuilder baseUrl(URL url) {
+    public QuarkusRestClientBuilder baseUrl(URL url) {
         this.url = url;
         return this;
     }
 
     @Override
-    public RestClientBuilder connectTimeout(long timeout, TimeUnit timeUnit) {
+    public QuarkusRestClientBuilder loadBalancer(LoadBalancer loadBalancer) {
+        this.loadBalancer = loadBalancer;
+        return this;
+    }
+
+    @Override
+    public QuarkusRestClientBuilder connectTimeout(long timeout, TimeUnit timeUnit) {
         clientBuilder.connectTimeout(timeout, timeUnit);
         return this;
     }
 
     @Override
-    public RestClientBuilder readTimeout(long timeout, TimeUnit timeUnit) {
+    public QuarkusRestClientBuilder readTimeout(long timeout, TimeUnit timeUnit) {
         clientBuilder.readTimeout(timeout, timeUnit);
         return this;
     }
 
     @Override
-    public RestClientBuilder sslContext(SSLContext sslContext) {
+    public QuarkusRestClientBuilder sslContext(SSLContext sslContext) {
         clientBuilder.sslContext(sslContext);
         return this;
     }
 
     @Override
-    public RestClientBuilder trustStore(KeyStore trustStore) {
+    public QuarkusRestClientBuilder trustStore(KeyStore trustStore) {
         clientBuilder.trustStore(trustStore);
         return this;
     }
 
     @Override
-    public RestClientBuilder keyStore(KeyStore keyStore, String keystorePassword) {
+    public QuarkusRestClientBuilder keyStore(KeyStore keyStore, String keystorePassword) {
         clientBuilder.keyStore(keyStore, keystorePassword);
         return this;
     }
 
     @Override
-    public RestClientBuilder hostnameVerifier(HostnameVerifier hostnameVerifier) {
+    public QuarkusRestClientBuilder hostnameVerifier(HostnameVerifier hostnameVerifier) {
         clientBuilder.hostnameVerifier(hostnameVerifier);
         return this;
     }
 
     @Override
-    public RestClientBuilder followRedirects(final boolean follow) {
+    public QuarkusRestClientBuilder followRedirects(final boolean follow) {
         this.followRedirects = follow;
         return this;
     }
 
     @Override
-    public RestClientBuilder proxyAddress(final String proxyHost, final int proxyPort) {
+    public QuarkusRestClientBuilder proxyAddress(final String proxyHost, final int proxyPort) {
         if (proxyHost == null) {
             throw new IllegalArgumentException("proxyHost must not be null");
         }
@@ -109,7 +118,7 @@ public class RestClientBuilderImpl implements RestClientBuilder {
     }
 
     @Override
-    public RestClientBuilder executorService(ExecutorService executor) {
+    public QuarkusRestClientBuilder executorService(ExecutorService executor) {
         throw new IllegalArgumentException("Specifying executor service is not supported. " +
                 "The underlying call in RestEasy Reactive is non-blocking, " +
                 "there is no reason to offload the call to a separate thread pool.");
@@ -121,13 +130,13 @@ public class RestClientBuilderImpl implements RestClientBuilder {
     }
 
     @Override
-    public RestClientBuilder property(String name, Object value) {
+    public QuarkusRestClientBuilder property(String name, Object value) {
         clientBuilder.property(name, value);
         return this;
     }
 
     @Override
-    public RestClientBuilder register(Class<?> componentClass) {
+    public QuarkusRestClientBuilder register(Class<?> componentClass) {
         Object bean = BeanGrabber.getBeanIfDefined(componentClass);
         if (bean != null) {
             registerMpSpecificProvider(bean);
@@ -140,7 +149,7 @@ public class RestClientBuilderImpl implements RestClientBuilder {
     }
 
     @Override
-    public RestClientBuilder register(Class<?> componentClass, int priority) {
+    public QuarkusRestClientBuilder register(Class<?> componentClass, int priority) {
         InstanceHandle<?> instance = Arc.container().instance(componentClass);
         if (instance.isAvailable()) {
             registerMpSpecificProvider(instance.get());
@@ -153,7 +162,7 @@ public class RestClientBuilderImpl implements RestClientBuilder {
     }
 
     @Override
-    public RestClientBuilder register(Class<?> componentClass, Class<?>... contracts) {
+    public QuarkusRestClientBuilder register(Class<?> componentClass, Class<?>... contracts) {
         InstanceHandle<?> instance = Arc.container().instance(componentClass);
         if (instance.isAvailable()) {
             registerMpSpecificProvider(instance.get());
@@ -166,7 +175,7 @@ public class RestClientBuilderImpl implements RestClientBuilder {
     }
 
     @Override
-    public RestClientBuilder register(Class<?> componentClass, Map<Class<?>, Integer> contracts) {
+    public QuarkusRestClientBuilder register(Class<?> componentClass, Map<Class<?>, Integer> contracts) {
         InstanceHandle<?> instance = Arc.container().instance(componentClass);
         if (instance.isAvailable()) {
             registerMpSpecificProvider(instance.get());
@@ -179,28 +188,28 @@ public class RestClientBuilderImpl implements RestClientBuilder {
     }
 
     @Override
-    public RestClientBuilder register(Object component) {
+    public QuarkusRestClientBuilder register(Object component) {
         registerMpSpecificProvider(component);
         clientBuilder.register(component);
         return this;
     }
 
     @Override
-    public RestClientBuilder register(Object component, int priority) {
+    public QuarkusRestClientBuilder register(Object component, int priority) {
         registerMpSpecificProvider(component);
         clientBuilder.register(component, priority);
         return this;
     }
 
     @Override
-    public RestClientBuilder register(Object component, Class<?>... contracts) {
+    public QuarkusRestClientBuilder register(Object component, Class<?>... contracts) {
         registerMpSpecificProvider(component);
         clientBuilder.register(component, contracts);
         return this;
     }
 
     @Override
-    public RestClientBuilder register(Object component, Map<Class<?>, Integer> contracts) {
+    public QuarkusRestClientBuilder register(Object component, Map<Class<?>, Integer> contracts) {
         registerMpSpecificProvider(component);
         clientBuilder.register(component, contracts);
         return this;
@@ -224,16 +233,17 @@ public class RestClientBuilderImpl implements RestClientBuilder {
     }
 
     @Override
-    public RestClientBuilder queryParamStyle(final QueryParamStyle style) {
+    public QuarkusRestClientBuilder queryParamStyle(final QueryParamStyle style) {
         queryParamStyle = style;
         return this;
     }
 
     @Override
     public <T> T build(Class<T> aClass) throws IllegalStateException, RestClientDefinitionException {
-        if (url == null) {
+        if (url == null && loadBalancer == null) {
             // mandated by the spec
-            throw new IllegalStateException("No URL specified. Cannot build a rest client without URL");
+            throw new IllegalStateException(
+                    "No URL and no LoadBalancer specified. Cannot build a rest client without URL or a LoadBalancer");
         }
 
         RestClientListeners.get().forEach(listener -> listener.onNewClient(aClass, this));
@@ -264,11 +274,18 @@ public class RestClientBuilderImpl implements RestClientBuilder {
 
         ClientImpl client = clientBuilder.build();
         WebTargetImpl target;
-        try {
-            target = (WebTargetImpl) client.target(url.toURI());
-        } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("Invalid Rest Client URL: " + url, e);
+        URI uri;
+        if (loadBalancer != null) {
+            target = client.target(loadBalancer);
+        } else {
+            try {
+                uri = url.toURI();
+                target = (WebTargetImpl) client.target(uri);
+            } catch (URISyntaxException e) {
+                throw new IllegalArgumentException("Invalid Rest Client URL: " + url, e);
+            }
         }
+
         try {
             return target.proxy(aClass);
         } catch (InvalidRestClientDefinitionException e) {

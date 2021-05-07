@@ -4,6 +4,7 @@ import static org.jboss.resteasy.reactive.client.api.QuarkusRestClientProperties
 import static org.jboss.resteasy.reactive.client.api.QuarkusRestClientProperties.MAX_REDIRECTS;
 
 import io.netty.channel.EventLoopGroup;
+import io.smallrye.loadbalancer.LoadBalancer;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Context;
 import io.vertx.core.DeploymentOptions;
@@ -153,12 +154,26 @@ public class ClientImpl implements Client {
 
     @Override
     public WebTarget target(UriBuilder uriBuilder) {
+        return target(uriBuilder, null);
+    }
+
+    public WebTargetImpl target(LoadBalancer loadBalancer) {
+        abortIfClosed();
+        Objects.requireNonNull(loadBalancer);
+
+        return this.target(UriBuilder.fromPath(""), loadBalancer);
+    }
+    // mstodo: test by programmatically created rest client
+    // mstodo with passed in load balancer
+
+    private WebTargetImpl target(UriBuilder uriBuilder, LoadBalancer loadBalancer) {
         abortIfClosed();
         Objects.requireNonNull(uriBuilder);
         if (uriBuilder instanceof UriBuilderImpl && multiQueryParamMode != null) {
             ((UriBuilderImpl) uriBuilder).multiQueryParamMode(multiQueryParamMode);
         }
-        return new WebTargetImpl(this, httpClient, uriBuilder, new ConfigurationImpl(configuration), handlerChain, null);
+        return new WebTargetImpl(this, httpClient, uriBuilder, new ConfigurationImpl(configuration), handlerChain, null,
+                loadBalancer);
     }
 
     @Override

@@ -202,7 +202,7 @@ public class GrpcClientProcessor {
 
     @BuildStep
     void runtimeInitialize(BuildProducer<RuntimeInitializedClassBuildItem> producer) {
-        // io.grpc.internal.RetriableStream uses j.u.Ramdom, so needs to be runtime-initialized
+        // io.grpc.internal.RetriableStream uses j.u.Random, so needs to be runtime-initialized
         producer.produce(new RuntimeInitializedClassBuildItem("io.grpc.internal.RetriableStream"));
     }
 

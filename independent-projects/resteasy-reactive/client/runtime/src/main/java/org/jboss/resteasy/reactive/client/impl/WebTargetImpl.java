@@ -1,5 +1,6 @@
 package org.jboss.resteasy.reactive.client.impl;
 
+import io.smallrye.loadbalancer.LoadBalancer;
 import io.vertx.core.http.HttpClient;
 import java.net.URI;
 import java.util.HashMap;
@@ -24,17 +25,20 @@ public class WebTargetImpl implements WebTarget {
     private final ClientImpl restClient;
     final HandlerChain handlerChain;
     final ThreadSetupAction requestContext;
+    final LoadBalancer loadBalancer;
 
     public WebTargetImpl(ClientImpl restClient, HttpClient client, UriBuilder uriBuilder,
             ConfigurationImpl configuration,
             HandlerChain handlerChain,
-            ThreadSetupAction requestContext) {
+            ThreadSetupAction requestContext,
+            LoadBalancer loadBalancer) {
         this.restClient = restClient;
         this.client = client;
         this.uriBuilder = uriBuilder;
         this.configuration = configuration;
         this.handlerChain = handlerChain;
         this.requestContext = requestContext;
+        this.loadBalancer = loadBalancer;
     }
 
     /**
@@ -261,7 +265,7 @@ public class WebTargetImpl implements WebTarget {
     protected WebTargetImpl newInstance(HttpClient client, UriBuilder uriBuilder,
             ConfigurationImpl configuration) {
         return new WebTargetImpl(restClient, client, uriBuilder, configuration, handlerChain,
-                requestContext);
+                requestContext, loadBalancer);
     }
 
     @Override
@@ -294,9 +298,11 @@ public class WebTargetImpl implements WebTarget {
         restClient.abortIfClosed();
     }
 
-    protected InvocationBuilderImpl createQuarkusRestInvocationBuilder(HttpClient client, UriBuilder uri,
+    protected InvocationBuilderImpl createQuarkusRestInvocationBuilder(HttpClient client, UriBuilder uriBuilder,
             ConfigurationImpl configuration) {
-        return new InvocationBuilderImpl(uri.build(), restClient, client, this, configuration, handlerChain, requestContext);
+
+        return new InvocationBuilderImpl(uriBuilder, restClient, client, this, configuration, handlerChain, requestContext,
+                loadBalancer);
     }
 
     @Override

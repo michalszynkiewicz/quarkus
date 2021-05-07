@@ -2,9 +2,9 @@ package org.jboss.resteasy.reactive.client.impl;
 
 import static org.jboss.resteasy.reactive.client.api.QuarkusRestClientProperties.READ_TIMEOUT;
 
+import io.smallrye.loadbalancer.LoadBalancer;
 import io.vertx.core.Context;
 import io.vertx.core.http.HttpClient;
-import java.net.URI;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -25,6 +25,7 @@ import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.UriBuilder;
 import org.jboss.resteasy.reactive.common.jaxrs.ConfigurationImpl;
 import org.jboss.resteasy.reactive.spi.ThreadSetupAction;
 
@@ -32,7 +33,7 @@ public class InvocationBuilderImpl implements Invocation.Builder {
 
     private static final long DEFAULT_READ_TIMEOUT = 30_000L;
 
-    final URI uri;
+    final UriBuilder uriBuilder;
     final HttpClient httpClient;
     final WebTargetImpl target;
     final RequestSpec requestSpec;
@@ -42,11 +43,12 @@ public class InvocationBuilderImpl implements Invocation.Builder {
     final HandlerChain handlerChain;
     final ThreadSetupAction requestContext;
     final long readTimeoutMs;
+    final LoadBalancer loadBalancer;
 
-    public InvocationBuilderImpl(URI uri, ClientImpl restClient, HttpClient httpClient,
-            WebTargetImpl target,
-            ConfigurationImpl configuration, HandlerChain handlerChain, ThreadSetupAction requestContext) {
-        this.uri = uri;
+    public InvocationBuilderImpl(UriBuilder uriBuilder, ClientImpl restClient, HttpClient httpClient, WebTargetImpl target,
+            ConfigurationImpl configuration, HandlerChain handlerChain, ThreadSetupAction requestContext,
+            LoadBalancer loadBalancer) {
+        this.uriBuilder = uriBuilder;
         this.restClient = restClient;
         this.httpClient = httpClient;
         this.target = target;
@@ -54,6 +56,7 @@ public class InvocationBuilderImpl implements Invocation.Builder {
         this.configuration = configuration;
         this.handlerChain = handlerChain;
         this.requestContext = requestContext;
+        this.loadBalancer = loadBalancer;
         Object readTimeoutMs = configuration.getProperty(READ_TIMEOUT);
         if (readTimeoutMs == null) {
             this.readTimeoutMs = DEFAULT_READ_TIMEOUT;
@@ -94,8 +97,8 @@ public class InvocationBuilderImpl implements Invocation.Builder {
 
     @Override
     public AsyncInvokerImpl async() {
-        return new AsyncInvokerImpl(restClient, httpClient, uri, requestSpec, configuration,
-                properties, handlerChain, requestContext);
+        return new AsyncInvokerImpl(restClient, httpClient, uriBuilder, requestSpec, configuration,
+                properties, handlerChain, requestContext, loadBalancer);
     }
 
     @Override
@@ -166,8 +169,8 @@ public class InvocationBuilderImpl implements Invocation.Builder {
 
     @Override
     public CompletionStageRxInvoker rx() {
-        return new AsyncInvokerImpl(restClient, httpClient, uri, requestSpec, configuration,
-                properties, handlerChain, requestContext);
+        return new AsyncInvokerImpl(restClient, httpClient, uriBuilder, requestSpec, configuration,
+                properties, handlerChain, requestContext, loadBalancer);
     }
 
     @Override

@@ -1,5 +1,6 @@
 package org.jboss.resteasy.reactive.client.impl;
 
+import io.smallrye.loadbalancer.LoadBalancer;
 import io.vertx.core.MultiMap;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClient;
@@ -22,6 +23,7 @@ import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.ext.MessageBodyWriter;
 import javax.ws.rs.ext.ReaderInterceptor;
 import javax.ws.rs.ext.WriterInterceptor;
@@ -42,7 +44,8 @@ public class RestClientRequestContext extends AbstractResteasyReactiveContext<Re
     // Changeable by the request filter
     String httpMethod;
     // Changeable by the request filter
-    URI uri;
+    UriBuilder uriBuilder;
+    volatile URI uri;
     // Changeable by the request filter
     Entity<?> entity;
     GenericType<?> responseType;
@@ -73,19 +76,20 @@ public class RestClientRequestContext extends AbstractResteasyReactiveContext<Re
     private ClientResponseContextImpl clientResponseContext;
     private InputStream responseEntityStream;
     private Response abortedWith;
+    private LoadBalancer loadBalancer;
 
     public RestClientRequestContext(ClientImpl restClient,
-            HttpClient httpClient, String httpMethod, URI uri,
+            HttpClient httpClient, String httpMethod, UriBuilder uriBuilder,
             ConfigurationImpl configuration, ClientRequestHeaders requestHeaders,
             Entity<?> entity, GenericType<?> responseType, boolean registerBodyHandler, Map<String, Object> properties,
-            ClientRestHandler[] handlerChain,
-            ClientRestHandler[] abortHandlerChain,
-            ThreadSetupAction requestContext) {
+            ClientRestHandler[] handlerChain, ClientRestHandler[] abortHandlerChain,
+            ThreadSetupAction requestContext, LoadBalancer loadBalancer) {
         super(handlerChain, abortHandlerChain, requestContext);
         this.restClient = restClient;
         this.httpClient = httpClient;
         this.httpMethod = httpMethod;
-        this.uri = uri;
+        this.uriBuilder = uriBuilder;
+        this.loadBalancer = loadBalancer;
         this.requestHeaders = requestHeaders;
         this.configuration = configuration;
         this.entity = entity;
@@ -355,5 +359,13 @@ public class RestClientRequestContext extends AbstractResteasyReactiveContext<Re
     public RestClientRequestContext setAbortedWith(Response abortedWith) {
         this.abortedWith = abortedWith;
         return this;
+    }
+
+    public UriBuilder getUriBuilder() {
+        return uriBuilder;
+    }
+
+    public LoadBalancer getLoadBalancer() {
+        return loadBalancer;
     }
 }
