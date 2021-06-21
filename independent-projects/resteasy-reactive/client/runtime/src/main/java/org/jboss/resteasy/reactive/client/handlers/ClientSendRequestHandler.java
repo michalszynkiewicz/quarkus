@@ -1,6 +1,11 @@
 package org.jboss.resteasy.reactive.client.handlers;
 
 import io.netty.handler.codec.http.multipart.HttpPostRequestEncoder;
+import io.smallrye.dux.Dux;
+import io.smallrye.dux.ServiceInstance;
+import io.smallrye.dux.utils.DuxAddressUtils;
+import io.smallrye.dux.utils.HostAndPort;
+import io.smallrye.mutiny.Uni;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
@@ -20,11 +25,15 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import javax.ws.rs.ProcessingException;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Variant;
+
+import org.jboss.resteasy.reactive.client.AsyncResultUni;
 import org.jboss.resteasy.reactive.client.api.QuarkusRestClientProperties;
 import org.jboss.resteasy.reactive.client.impl.AsyncInvokerImpl;
 import org.jboss.resteasy.reactive.client.impl.RestClientRequestContext;
@@ -44,11 +53,11 @@ public class ClientSendRequestHandler implements ClientRestHandler {
             return;
         }
         requestContext.suspend();
-        Future<HttpClientRequest> future = createRequest(requestContext);
+        Uni<HttpClientRequest> future = createRequest(requestContext);
         // DNS failures happen before we send the request
-        future.onFailure(new Handler<Throwable>() {
+        future.onFailure().invoke(new Consumer<>() {
             @Override
-            public void handle(Throwable event) {
+            public void accept(Throwable event) {
                 if (event instanceof IOException) {
                     requestContext.resume(new ProcessingException(event));
                 } else {
@@ -56,9 +65,9 @@ public class ClientSendRequestHandler implements ClientRestHandler {
                 }
             }
         });
-        future.onSuccess(new Handler<HttpClientRequest>() {
+        future.subscribe().with(new Consumer<>() {
             @Override
-            public void handle(HttpClientRequest httpClientRequest) {
+            public void accept(HttpClientRequest httpClientRequest) {
                 Future<HttpClientResponse> sent;
                 if (requestContext.isMultipart()) {
                     Promise<HttpClientRequest> requestPromise = Promise.promise();
@@ -109,7 +118,7 @@ public class ClientSendRequestHandler implements ClientRestHandler {
                     }
                 }
 
-                sent.onSuccess(new Handler<HttpClientResponse>() {
+                sent.onSuccess(new Handler<>() {
                     @Override
                     public void handle(HttpClientResponse clientResponse) {
                         try {
@@ -118,7 +127,7 @@ public class ClientSendRequestHandler implements ClientRestHandler {
                                 clientResponse.pause();
                                 requestContext.resume();
                             } else {
-                                clientResponse.bodyHandler(new Handler<Buffer>() {
+                                clientResponse.bodyHandler(new Handler<>() {
                                     @Override
                                     public void handle(Buffer buffer) {
                                         try {
@@ -140,7 +149,7 @@ public class ClientSendRequestHandler implements ClientRestHandler {
                         }
                     }
                 })
-                        .onFailure(new Handler<Throwable>() {
+                        .onFailure(new Handler<>() {
                             @Override
                             public void handle(Throwable failure) {
                                 if (failure instanceof IOException) {
@@ -154,19 +163,51 @@ public class ClientSendRequestHandler implements ClientRestHandler {
         });
     }
 
-    public Future<HttpClientRequest> createRequest(RestClientRequestContext state) {
+    public Uni<HttpClientRequest> createRequest(RestClientRequestContext state) {
         HttpClient httpClient = state.getHttpClient();
         URI uri = state.getUri();
-        boolean isHttps = "https".equals(uri.getScheme());
-        int port = uri.getPort() != -1 ? uri.getPort() : (isHttps ? 443 : 80);
-        RequestOptions requestOptions = new RequestOptions();
-        requestOptions.setHost(uri.getHost());
-        requestOptions.setPort(port);
-        requestOptions.setMethod(HttpMethod.valueOf(state.getHttpMethod()));
-        requestOptions.setURI(uri.getPath() + (uri.getQuery() == null ? "" : "?" + uri.getQuery()));
-        requestOptions.setFollowRedirects(followRedirects);
-        requestOptions.setSsl(isHttps);
-        return httpClient.request(requestOptions);
+
+        Uni<RequestOptions> requestOptions;
+        if (uri.getScheme().startsWith("dux")) {
+            boolean isHttps = "duxs".equals(uri.getScheme());
+            String serviceName = uri.getHost();
+            Uni<ServiceInstance> serviceInstance = Dux.getInstance().getLoadBalancer(serviceName)
+                    .selectServiceInstance();
+            requestOptions = serviceInstance.map(ServiceInstance::getValue)
+                    .map(new Function<>() {
+                        @Override
+                        public RequestOptions apply(String host) {
+                            return configureHostAndPort(isHttps, new RequestOptions(), host, serviceName);
+                        }
+                    });
+        } else {
+            boolean isHttps = "https".equals(uri.getScheme());
+            int port = getPort(isHttps, uri.getPort());
+            requestOptions = Uni.createFrom().item(new RequestOptions().setHost(uri.getHost())
+                    .setPort(port).setSsl(isHttps));
+        }
+
+        return requestOptions.onItem()
+                .transform(r -> r.setMethod(HttpMethod.valueOf(state.getHttpMethod()))
+                        .setURI(uri.getPath() + (uri.getQuery() == null ? "" : "?" + uri.getQuery()))
+                        .setFollowRedirects(followRedirects))
+                .flatMap(options -> AsyncResultUni.toUni(handler -> httpClient.request(options, handler)));
+    }
+
+    private RequestOptions configureHostAndPort(boolean isHttps, RequestOptions options,
+            String serviceAddress, String serviceName) {
+        HostAndPort hostAndPort = DuxAddressUtils.parseToHostAndPort(serviceAddress, defaultPort(isHttps), serviceName);
+        options.setHost(hostAndPort.host);
+        options.setPort(hostAndPort.port);
+        return options;
+    }
+
+    private int getPort(boolean isHttps, int specifiedPort) {
+        return specifiedPort != -1 ? specifiedPort : defaultPort(isHttps);
+    }
+
+    private int defaultPort(boolean isHttps) {
+        return isHttps ? 443 : 80;
     }
 
     private MultipartFormUpload setMultipartHeadersAndPrepareBody(HttpClientRequest httpClientRequest,
