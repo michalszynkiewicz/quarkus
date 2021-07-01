@@ -30,6 +30,13 @@ public class GrpcClientConfiguration {
     public SslClientConfig ssl;
 
     /**
+     * Use a name resolver. Defaults to dns.
+     * If set to "dux", host will be treated as SmallRye Dux service name
+     */
+    @ConfigItem(defaultValue = "dns")
+    public String nameResolver;
+
+    /**
      * Whether {@code plain-text} should be used instead of {@code TLS}.
      * Enables by default, except it TLS/SSL is configured. In this case, {@code plain-text} is disabled.
      */
@@ -140,6 +147,7 @@ public class GrpcClientConfiguration {
     /**
      * Use a custom load balancing policy.
      * Accepted values are: {@code pick_value}, {@code round_robin}, {@code grpclb}
+     * This value is ignored if name-resolver is set to 'dux'
      */
     @ConfigItem(defaultValue = "pick_first")
     public String loadBalancingPolicy;
