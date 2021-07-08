@@ -37,6 +37,7 @@ public class BasicTest {
     void shouldMakeJsonRequest() {
         List<Map> results = RestAssured.with().body(appleUrl).post("/call-client")
                 .then()
+                .log().ifError()
                 .statusCode(200)
                 .contentType("application/json")
                 .extract().body().jsonPath().getList(".", Map.class);
